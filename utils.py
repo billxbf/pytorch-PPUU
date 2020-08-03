@@ -627,6 +627,7 @@ def build_model_file_name(opt):
     opt.model_file += f'-npred={opt.npred}'
     opt.model_file += f'-ureg={opt.u_reg}'
     opt.model_file += f'-lambdal={opt.lambda_l}'
+    opt.model_file += f'-lambdao={opt.lambda_o}'
     opt.model_file += f'-lambdaa={opt.lambda_a}'
     opt.model_file += f'-gamma={opt.gamma}'
     opt.model_file += f'-lrtz={opt.lrt_z}'
