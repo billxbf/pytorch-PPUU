@@ -72,6 +72,13 @@ def lane_cost(images, car_size):
     min_x = max_x
     min_y = torch.ceil(crop_w / 2 - width)  # assumes other._width / 2 = self._width / 2
     min_y = min_y.view(bsize, 1).expand(bsize, npred).contiguous().view(bsize * npred).cuda()
+
+    # transform type
+    max_x = max_x.float()
+    max_y = max_y.float()
+    min_x = min_x.float()
+    min_y = min_y.float()
+    
     x_filter = (1 - torch.abs(torch.linspace(-1, 1, crop_h))) * crop_h / 2
 
     x_filter = x_filter.unsqueeze(0).expand(bsize * npred, crop_h).cuda()
@@ -132,11 +139,10 @@ def proximity_cost(images, states, car_size=(6.4, 14.3), green_channel=1, unnorm
     min_y = min_y.view(bsize, 1).expand(bsize, npred).contiguous().view(bsize * npred).cuda()
 
     # transform type
-    if green_channel == 3:
-        max_x = max_x.float()
-        max_y = max_y.float()
-        min_x = min_x.float()
-        min_y = min_y.float()
+    max_x = max_x.float()
+    max_y = max_y.float()
+    min_x = min_x.float()
+    min_y = min_y.float()
 
     x_filter = (1 - torch.abs(torch.linspace(-1, 1, crop_h))) * crop_h / 2
     x_filter = x_filter.unsqueeze(0).expand(bsize * npred, crop_h).cuda()
