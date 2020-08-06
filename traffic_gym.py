@@ -1156,7 +1156,7 @@ class Simulator(core.Env):
         conf_threshold = 5
         lane_image[:, :, 0:2] /= np.expand_dims(self.trajectory_image[:, :, 2] + 1e-6, axis=2)
         lane_image[:, :, 2] = np.min(np.stack([lane_image[:, :, 2], np.ones_like(lane_image[:, :, 2])*conf_threshold],
-                                              axis=-1), axis=-1)[0] / conf_threshold
+                                              axis=-1), axis=-1) / conf_threshold
         d = lane_image[:, :, 0:2]
         phi = np.linalg.norm(d, axis=2)
         phi = 1. / (1. + np.exp(-50 * (phi - soft_threshold)))
