@@ -176,7 +176,7 @@ def train(nbatches, npred):
                                       target_hidden_variables=target_hidden_variables)
         loss = loss_i + loss_s + opt.beta*loss_p
         if loss_h is not None:
-            loss_s += loss_h
+            loss += loss_h
 
         # VAEs get NaN loss sometimes, so check for it
         if not math.isnan(loss.item()):
@@ -189,7 +189,7 @@ def train(nbatches, npred):
         total_loss_s += loss_s.item()
         total_loss_p += loss_p.item()
         if loss_h is not None:
-            total_loss_h += loss_h
+            total_loss_h += loss_h.item()
         del inputs, actions, targets
 
     total_loss_i /= nbatches
@@ -201,24 +201,32 @@ def train(nbatches, npred):
 
 def test(nbatches):
     model.eval()
-    total_loss_i, total_loss_s, total_loss_p = 0, 0, 0
+    total_loss_i, total_loss_s, total_loss_p, total_loss_h = 0, 0, 0, 0
     for i in range(nbatches):
+        target_hidden_variables = None
         inputs, actions, targets, _, _ = dataloader.get_batch_fm('valid')
 
         pred, loss_p = model(inputs[: -1], actions, targets, z_dropout=opt.z_dropout)
         loss_p = loss_p[0]
-        loss_i, loss_s = compute_loss(targets, pred)
+        if opt.pred_h:
+            target_hidden_variables = loss_p[2]
+        loss_i, loss_s, loss_h = compute_loss(targets, pred, output_h=opt.output_h, pred_h=opt.pred_h,
+                                      target_hidden_variables=target_hidden_variables)
         loss = loss_i + loss_s + opt.beta*loss_p
+        if loss_h is not None:
+            loss += loss_h
 
         total_loss_i += loss_i.item()
         total_loss_s += loss_s.item()
         total_loss_p += loss_p.item()
+        if loss_h is not None:
+            total_loss_h += loss_h.item()
         del inputs, actions, targets
 
     total_loss_i /= nbatches
     total_loss_s /= nbatches
     total_loss_p /= nbatches
-    return total_loss_i, total_loss_s, total_loss_p
+    return total_loss_i, total_loss_s, total_loss_p, total_loss_h
 
 writer = utils.create_tensorboard_writer(opt)
 
