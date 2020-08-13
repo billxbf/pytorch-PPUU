@@ -163,7 +163,7 @@ def expand(x, actions, nrep):
 
 def train(nbatches, npred):
     model.train()
-    total_loss_i, total_loss_s, total_loss_p = 0, 0, 0
+    total_loss_i, total_loss_s, total_loss_p, total_loss_h = 0, 0, 0, 0
     for i in range(nbatches):
         optimizer.zero_grad()
         target_hidden_variables = None
@@ -188,12 +188,15 @@ def train(nbatches, npred):
         total_loss_i += loss_i.item()
         total_loss_s += loss_s.item()
         total_loss_p += loss_p.item()
+        if loss_h is not None:
+            total_loss_h += loss_h
         del inputs, actions, targets
 
     total_loss_i /= nbatches
     total_loss_s /= nbatches
     total_loss_p /= nbatches
-    return total_loss_i, total_loss_s, total_loss_p
+    total_loss_h /= nbatches
+    return total_loss_i, total_loss_s, total_loss_p, total_loss_h
 
 
 def test(nbatches):
