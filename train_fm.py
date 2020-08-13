@@ -131,7 +131,7 @@ def compute_loss(targets, predictions, reduction='mean', output_h=False, pred_h=
     target_images = targets[0]
     target_states = targets[1]
     if output_h:
-        pred_images, pred_states, pred_hidden_variables, _ = predictions
+        pred_images, pred_states, _, pred_hidden_variables = predictions
     else:
         pred_images, pred_states, _ = predictions
     loss_i = F.mse_loss(pred_images, target_images, reduction=reduction)
@@ -170,7 +170,7 @@ def train(nbatches, npred):
         inputs, actions, targets, _, _ = dataloader.get_batch_fm('train', npred)
         pred, loss_p = model(inputs[: -1], actions, targets, z_dropout=opt.z_dropout)
         loss_p = loss_p[0]
-        if opt.pred_h:
+        if opt.output_h and opt.pred_h:
             target_hidden_variables = loss_p[2]
         loss_i, loss_s, loss_h = compute_loss(targets, pred, output_h=opt.output_h, pred_h=opt.pred_h,
                                       target_hidden_variables=target_hidden_variables)
@@ -208,7 +208,7 @@ def test(nbatches):
 
         pred, loss_p = model(inputs[: -1], actions, targets, z_dropout=opt.z_dropout)
         loss_p = loss_p[0]
-        if opt.pred_h:
+        if opt.output_h and opt.pred_h:
             target_hidden_variables = loss_p[2]
         loss_i, loss_s, loss_h = compute_loss(targets, pred, output_h=opt.output_h, pred_h=opt.pred_h,
                                       target_hidden_variables=target_hidden_variables)
