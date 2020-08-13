@@ -59,7 +59,7 @@ if opt.value_model != '':
 # Create policy
 model.create_policy_net(opt)
 optimizer = optim.Adam(model.policy_net.parameters(), opt.lrt)  # POLICY optimiser ONLY!
-
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=200, gamma=0.1)
 # Load normalisation stats
 stats = torch.load('traffic-data/state-action-cost/data_i80_v0/data_stats.pth')
 model.stats = stats  # used by planning.py/compute_uncertainty_batch
@@ -235,6 +235,7 @@ else:
 writer = utils.create_tensorboard_writer(opt)
 
 for i in range(500):
+    scheduler.step()
     train_losses = start('train', opt.epoch_size, opt.npred, pad=opt.pad)
     a_grad = []
     if opt.track_grad_norm:
