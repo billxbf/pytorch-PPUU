@@ -44,7 +44,8 @@ parser.add_argument('-tensorboard_dir', type=str, default='models',
                     help='path to the directory where to save tensorboard log. If passed empty path' \
                          ' no logs are saved.')
 parser.add_argument('-use_colored_lane', type=bool, default=False, help='use colored lanes for forward model')
-parser.add_argument('-pred_h', type=bool, default=False, help='output the hidden variables in the forward model')
+parser.add_argument('-output_h', type=bool, default=False, help='output the hidden variables for cost model')
+parser.add_argument('-pred_h', type=bool, default=False, help='decouple predictor from decoder')
 opt = parser.parse_args()
 
 os.system('mkdir -p ' + opt.model_dir)
@@ -71,6 +72,7 @@ if opt.grad_clip != -1:
 
 opt.model_file += f'-warmstart={opt.warmstart}'
 opt.model_file += f'-seed={opt.seed}'
+opt.model_file += f'-pred_h={opt.output_h}'
 opt.model_file += f'-pred_h={opt.pred_h}'
 print(f'[will save model as: {opt.model_file}]')
 
@@ -125,16 +127,19 @@ model.cuda()
 # loss_s: states
 # loss_p: relative entropy (optional)
 
-def compute_loss(targets, predictions, reduction='mean', pred_h=False):
+def compute_loss(targets, predictions, reduction='mean', output_h=False, pred_h=False, target_hidden_variables=None):
     target_images = targets[0]
     target_states = targets[1]
-    if pred_h:
-        pred_images, pred_states, _, _ = predictions
+    if output_h:
+        pred_images, pred_states, pred_hidden_variables, _ = predictions
     else:
         pred_images, pred_states, _ = predictions
     loss_i = F.mse_loss(pred_images, target_images, reduction=reduction)
     loss_s = F.mse_loss(pred_states, target_states, reduction=reduction)
-    return loss_i, loss_s
+    if pred_h:
+        loss_h = F.mse_loss(pred_hidden_variables[:, 1:, ...], target_hidden_variables[:, :-1, ...], reduction=reduction)
+        return loss_i, loss_s, loss_h
+    return loss_i, loss_s, None
 
 
 def expand(x, actions, nrep):
@@ -161,11 +166,17 @@ def train(nbatches, npred):
     total_loss_i, total_loss_s, total_loss_p = 0, 0, 0
     for i in range(nbatches):
         optimizer.zero_grad()
+        target_hidden_variables = None
         inputs, actions, targets, _, _ = dataloader.get_batch_fm('train', npred)
         pred, loss_p = model(inputs[: -1], actions, targets, z_dropout=opt.z_dropout)
         loss_p = loss_p[0]
-        loss_i, loss_s = compute_loss(targets, pred, pred_h=opt.pred_h)
+        if opt.pred_h:
+            target_hidden_variables = loss_p[2]
+        loss_i, loss_s, loss_h = compute_loss(targets, pred, output_h=opt.output_h, pred_h=opt.pred_h,
+                                      target_hidden_variables=target_hidden_variables)
         loss = loss_i + loss_s + opt.beta*loss_p
+        if loss_h is not None:
+            loss_s += loss_h
 
         # VAEs get NaN loss sometimes, so check for it
         if not math.isnan(loss.item()):
