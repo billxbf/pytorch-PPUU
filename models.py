@@ -643,7 +643,7 @@ class FwdCNN_VAE(nn.Module):
         # pred_state = torch.clamp(pred_state + input_states[:, -1], min=-6, max=6)
         pred_state = pred_state + input_states[:, -1]
 
-        if self.opt.output_h:
+        if hasattr(self.opt, 'output_h') and self.opt.output_h:
             return pred_image, pred_state, h
         else:
             return pred_image, pred_state
@@ -658,7 +658,7 @@ class FwdCNN_VAE(nn.Module):
 
         pred_images, pred_states = [], []
         z_list = []
-        if self.opt.output_h:
+        if hasattr(self.opt, 'output_h') and self.opt.output_h:
             target_hidden_variables = []
             pred_hidden_variables = []
 
@@ -666,7 +666,7 @@ class FwdCNN_VAE(nn.Module):
         for t in range(npred):
             # encode the inputs (without the action)
             h_x = self.encoder(input_images, input_states)
-            if self.opt.output_h:
+            if hasattr(self.opt, 'output_h') and self.opt.output_h:
                 target_hidden_variables.append(h_x)
             if sampling is None:
                 # we are training or estimating z distribution
@@ -700,7 +700,7 @@ class FwdCNN_VAE(nn.Module):
             a_emb = self.a_encoder(actions[:, t]).view(h.size())
             h = h + a_emb
             h = h + self.u_network(h)
-            if self.opt.output_h:
+            if hasattr(self.opt, 'output_h') and self.opt.output_h:
                 pred_hidden_variables.append(h)
             pred_image, pred_state = self.decoder(h)
             if sampling is not None:
@@ -717,7 +717,7 @@ class FwdCNN_VAE(nn.Module):
         pred_images = torch.cat(pred_images, 1)
         pred_states = torch.stack(pred_states, 1)
         z_list = torch.stack(z_list, 1)
-        if self.opt.output_h:
+        if hasattr(self.opt, 'output_h') and self.opt.output_h:
             pred_hidden_variables = torch.stack(pred_hidden_variables, 1)
             target_hidden_variables = torch.stack(target_hidden_variables, 1)
             return [pred_images, pred_states, z_list, pred_hidden_variables], [ploss, ploss2, target_hidden_variables]
