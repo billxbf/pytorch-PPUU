@@ -226,6 +226,7 @@ def test(nbatches):
     total_loss_i /= nbatches
     total_loss_s /= nbatches
     total_loss_p /= nbatches
+    total_loss_h /= nbatches
     return total_loss_i, total_loss_s, total_loss_p, total_loss_h
 
 writer = utils.create_tensorboard_writer(opt)
