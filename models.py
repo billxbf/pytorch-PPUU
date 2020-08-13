@@ -643,7 +643,10 @@ class FwdCNN_VAE(nn.Module):
         # pred_state = torch.clamp(pred_state + input_states[:, -1], min=-6, max=6)
         pred_state = pred_state + input_states[:, -1]
 
-        return pred_image, pred_state
+        if self.opt.h_pred:
+            return pred_image, pred_state, h
+        else:
+            return pred_image, pred_state
 
     def forward(self, inputs, actions, targets, save_z=False, sampling=None, z_dropout=0.0, z_seq=None, noise=None):
         input_images, input_states = inputs
@@ -655,11 +658,16 @@ class FwdCNN_VAE(nn.Module):
 
         pred_images, pred_states = [], []
         z_list = []
+        if self.opt.pred_h:
+            h_target_list = []
+            h_pred_list = []
 
         z = None
         for t in range(npred):
             # encode the inputs (without the action)
             h_x = self.encoder(input_images, input_states)
+            if self.opt.pred_h:
+                h_target_list.append(h_x)
             if sampling is None:
                 # we are training or estimating z distribution
                 target_images, target_states, _ = targets
@@ -692,7 +700,8 @@ class FwdCNN_VAE(nn.Module):
             a_emb = self.a_encoder(actions[:, t]).view(h.size())
             h = h + a_emb
             h = h + self.u_network(h)
-
+            if self.opt.pred_h:
+                h_pred_list.append(h)
             pred_image, pred_state = self.decoder(h)
             if sampling is not None:
                 pred_image.detach()
@@ -708,7 +717,10 @@ class FwdCNN_VAE(nn.Module):
         pred_images = torch.cat(pred_images, 1)
         pred_states = torch.stack(pred_states, 1)
         z_list = torch.stack(z_list, 1)
-        return [pred_images, pred_states, z_list], [ploss, ploss2]
+        if self.opt.pred_h:
+            return [pred_images, pred_states, z_list, h_pred_list], [ploss, ploss2, h_target_list]
+        else:
+            return [pred_images, pred_states, z_list], [ploss, ploss2]
 
     def reset_action_buffer(self, npred):
         self.actions_buffer = torch.zeros(npred, self.opt.n_actions).cuda()

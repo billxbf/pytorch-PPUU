@@ -44,6 +44,7 @@ parser.add_argument('-tensorboard_dir', type=str, default='models',
                     help='path to the directory where to save tensorboard log. If passed empty path' \
                          ' no logs are saved.')
 parser.add_argument('-use_colored_lane', type=bool, default=False, help='use colored lanes for forward model')
+parser.add_argument('-pred_h', type=bool, default=False, help='output the hidden variables in the forward model')
 opt = parser.parse_args()
 
 os.system('mkdir -p ' + opt.model_dir)
@@ -123,10 +124,13 @@ model.cuda()
 # loss_s: states
 # loss_p: relative entropy (optional)
 
-def compute_loss(targets, predictions, reduction='mean'):
+def compute_loss(targets, predictions, reduction='mean', pred_h=False):
     target_images = targets[0]
     target_states = targets[1]
-    pred_images, pred_states, _ = predictions
+    if pred_h:
+        pred_images, pred_states, _, _ = predictions
+    else:
+        pred_images, pred_states, _ = predictions
     loss_i = F.mse_loss(pred_images, target_images, reduction=reduction)
     loss_s = F.mse_loss(pred_states, target_states, reduction=reduction)
     return loss_i, loss_s
@@ -159,7 +163,7 @@ def train(nbatches, npred):
         inputs, actions, targets, _, _ = dataloader.get_batch_fm('train', npred)
         pred, loss_p = model(inputs[: -1], actions, targets, z_dropout=opt.z_dropout)
         loss_p = loss_p[0]
-        loss_i, loss_s = compute_loss(targets, pred)
+        loss_i, loss_s = compute_loss(targets, pred, pred_h=opt.pred_h)
         loss = loss_i + loss_s + opt.beta*loss_p
 
         # VAEs get NaN loss sometimes, so check for it
