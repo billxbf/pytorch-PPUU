@@ -643,7 +643,7 @@ class FwdCNN_VAE(nn.Module):
         # pred_state = torch.clamp(pred_state + input_states[:, -1], min=-6, max=6)
         pred_state = pred_state + input_states[:, -1]
 
-        if self.opt.h_pred:
+        if self.opt.pred_h:
             return pred_image, pred_state, h
         else:
             return pred_image, pred_state

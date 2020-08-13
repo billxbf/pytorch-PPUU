@@ -71,6 +71,7 @@ if opt.grad_clip != -1:
 
 opt.model_file += f'-warmstart={opt.warmstart}'
 opt.model_file += f'-seed={opt.seed}'
+opt.model_file += f'-pred_h={opt.pred_h}'
 print(f'[will save model as: {opt.model_file}]')
 
 
