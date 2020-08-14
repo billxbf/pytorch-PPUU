@@ -206,10 +206,10 @@ def test(nbatches):
         target_hidden_variables = None
         inputs, actions, targets, _, _ = dataloader.get_batch_fm('valid')
 
-        pred, loss_p = model(inputs[: -1], actions, targets, z_dropout=opt.z_dropout)
-        loss_p = loss_p[0]
+        pred, loss_target = model(inputs[: -1], actions, targets, z_dropout=opt.z_dropout)
+        loss_p = loss_target[0]
         if opt.output_h and opt.pred_h:
-            target_hidden_variables = loss_p[2]
+            target_hidden_variables = loss_target[2]
         loss_i, loss_s, loss_h = compute_loss(targets, pred, output_h=opt.output_h, pred_h=opt.pred_h,
                                       target_hidden_variables=target_hidden_variables)
         loss = loss_i + loss_s + opt.beta*loss_p
