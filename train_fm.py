@@ -137,7 +137,7 @@ def compute_loss(targets, predictions, reduction='mean', output_h=False, pred_h=
     loss_i = F.mse_loss(pred_images, target_images, reduction=reduction)
     loss_s = F.mse_loss(pred_states, target_states, reduction=reduction)
     if pred_h:
-        loss_h = F.mse_loss(pred_hidden_variables[:, 1:, ...], target_hidden_variables[:, :-1, ...], reduction=reduction)
+        loss_h = F.mse_loss(pred_hidden_variables[:, :-1, ...], target_hidden_variables[:, 1:, ...], reduction=reduction)
         return loss_i, loss_s, loss_h
     return loss_i, loss_s, None
 
