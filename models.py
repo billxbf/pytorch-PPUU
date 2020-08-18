@@ -671,10 +671,11 @@ class FwdCNN_VAE(nn.Module):
         for t in range(npred):
             # encode the inputs (without the action)
             h_x = self.encoder(input_images, input_states)
-            # if hasattr(self.opt, 'output_h') and self.opt.output_h and pred_hidden_variables==[]:
-            #     h_x = self.encoder(input_images, input_states)
-            # else:
-            #     h_x = pred_hidden_variables[-1]
+            # if hasattr(self.opt, 'output_h') and self.opt.output_h:
+            #   if pred_hidden_variables==[]:
+            #       h_x = self.encoder(input_images, input_states)
+            #   else:
+            #       h_x = pred_hidden_variables[-1]
             if hasattr(self.opt, 'output_h') and self.opt.output_h:
                 target_hidden_variables.append(h_x)
             if sampling is None:
