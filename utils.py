@@ -228,6 +228,37 @@ def orientation_and_confidence_cost(images, states, pad, car_size=(6.4, 14.3), u
     # conf_cost = (1 - v) ** 2
     return orientation_cost.view(bsize, npred), conf_cost.view(bsize, npred)
 
+def offroad_pixel_cost(images, states, pad, car_size=(6.4, 14.3), unnormalize=False, s_mean=None, s_std=None):
+    SCALE = 0.25
+    bsize, npred, nchannels, crop_h, crop_w = images.size()
+    images = images.view(bsize * npred, nchannels, crop_h, crop_w)
+    states = states.view(bsize * npred, 4).clone()
+
+    if unnormalize:
+        states = states * (1e-8 + s_std.view(1, 4).expand(states.size())).cuda()
+        states = states + s_mean.view(1, 4).expand(states.size()).cuda()
+
+    speed = states[:, 2:] * SCALE  # pixel/s
+    width, length = car_size[:, 0], car_size[:, 1]  # feet
+    width = width * SCALE * (0.3048 * 24 / 3.7)  # pixels
+    length = length * SCALE * (0.3048 * 24 / 3.7)  # pixels
+
+    images = images.view(bsize, npred, nchannels, crop_h, crop_w)
+
+    neighbourhood_array = images[:, :, :3, crop_h//2-pad:crop_h//2+pad+1, crop_w//2-pad:crop_w//2+pad+1]
+    dmap = torch.stack([2 * (neighbourhood_array[:, :, 0] - 0.5),
+                             2 * (neighbourhood_array[:, :, 1] - 0.5)], dim=2).cuda()
+    v = neighbourhood_array[:, :, 2]
+    s = dmap.norm(2, 2)
+    speed = speed.view(bsize, npred, 2).unsqueeze(dim=-1).unsqueeze(dim=-1)
+    cosdis = (speed[:, :, 0] * dmap[:, :, 0] + speed[:, :, 1] * dmap[:, :, 1]) / (2 * speed.norm(2, 2) * dmap.norm(2, 2) + 1e-6)
+    orientation_cost = torch.mean(torch.mean(s * (
+                torch.max(torch.stack([-cosdis + math.cos(5 / 180 * math.pi)/2, torch.zeros_like(cosdis)], dim=2),
+                          dim=2)[0])**2, dim=-1), dim=-1)
+    conf_cost = torch.mean(torch.mean((1-v)**2, dim=-1), dim=-1)
+
+    return orientation_cost.view(bsize, npred), conf_cost.view(bsize, npred)
+
 def parse_car_path(path):
     splits = path.split('/')
     time_slot = splits[-2]

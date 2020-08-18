@@ -108,10 +108,15 @@ class u_network(nn.Module):
         assert(self.opt.layers == 3) # hardcoded sizes
         self.hidden_size = self.opt.nfeature*3*2
         self.fc = nn.Sequential(
-            nn.Linear(self.hidden_size, self.opt.nfeature),
+            nn.Linear(self.hidden_size, self.hidden_size),
             nn.Dropout(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(self.opt.nfeature, self.hidden_size)
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.Dropout(p=opt.dropout, inplace=True),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.Dropout(p=opt.dropout, inplace=True),
+            nn.LeakyReLU(0.2, inplace=True),
         )
 
     def forward(self, h):
@@ -796,8 +801,8 @@ class CostPredictor(nn.Module):
             nn.ReLU(),
             nn.Linear(opt.n_hidden, opt.n_hidden),
             nn.ReLU(),
-            nn.Linear(opt.n_hidden, 2),
-            nn.Tanh()
+            nn.Linear(opt.n_hidden, 3 if opt.use_colored_lane else 2),
+            nn.Sigmoid()
         )
 
     def forward(self, state_images, states):
