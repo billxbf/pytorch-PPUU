@@ -91,6 +91,8 @@ def train(nbatches, npred):
         optimizer.zero_grad()
         inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('train', npred)
         #pdb.set_trace()
+        if opt.random_action:
+            actions = torch.normal(model.stats['a_mean'], model.stats['a_std'], size=actions.size())
         pred, _ = model(inputs[: -1], actions, targets, z_dropout=0)
         if model.opt.output_h and opt.pred_from_h:
             pred_cost = cost(pred[2])
