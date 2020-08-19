@@ -197,7 +197,7 @@ def orientation_and_confidence_cost(images, states, pad, car_size=(6.4, 14.3), u
     # orientation_cost = -torch.mean(torch.mean(torch.log(torch.max(torch.stack([1 - s * (
     #             torch.max(torch.stack([-cosdis + math.cos(5 / 180 * math.pi)/2, torch.zeros_like(cosdis)], dim=2),
     #                       dim=2)[0]), torch.zeros_like(cosdis)+1e-6], dim=2), dim=2)[0]), dim=-1), dim=-1)
-    # conf_cost = -torch.log(torch.mean(torch.mean(v, dim=-1),dim=-1)*(1-np.exp(-1))+np.exp(-1))
+    # conf_cost = -torch.log(torch.mean(torch.mean(v, dim=-1),dim=-1)*(1-math.exp(-1))+math .exp(-1))
 
     # orientation_cost = -torch.log(1 - s * (torch.max(torch.stack([-cosdis + math.cos(5 / 180 * math.pi), torch.zeros_like(cosdis)], dim=1), dim=1)[0] / 2))
     # orientation_cost = orientation_cost.view(bsize, npred)
@@ -641,6 +641,8 @@ def parse_command_line(parser=None):
     parser.add_argument('-use_colored_lane', type=bool, default=False, help='use colored lanes for forward model')
     parser.add_argument('-pad', type=int, default=1, help='p for neighborhood region')
     parser.add_argument('-track_grad_norm', type=bool, default=False, help='track grad norm for costs in validation steps')
+    parser.add_argument('-output_h', type=bool, default=False, help='output the hidden variables for cost model')
+    parser.add_argument('-pred_h', type=bool, default=False, help='decouple predictor from decoder')
 
     opt = parser.parse_args()
     opt.n_inputs = 4

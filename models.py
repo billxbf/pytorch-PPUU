@@ -91,19 +91,19 @@ class u_network(nn.Module):
     def __init__(self, opt):
         super(u_network, self).__init__()
         self.opt = opt
-        self.encoder = nn.Sequential(
-            nn.Conv2d(self.opt.nfeature, self.opt.nfeature, 4, 2, 1),
-            nn.Dropout2d(p=opt.dropout, inplace=True),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(self.opt.nfeature, self.opt.nfeature, (4, 1), 2, 1)
-        )
+        # self.encoder = nn.Sequential(
+        #     nn.Conv2d(self.opt.nfeature, self.opt.nfeature, 4, 2, 1),
+        #     nn.Dropout2d(p=opt.dropout, inplace=True),
+        #     nn.LeakyReLU(0.2, inplace=True),
+        #     nn.Conv2d(self.opt.nfeature, self.opt.nfeature, (4, 1), 2, 1)
+        # )
 
-        self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(self.opt.nfeature, self.opt.nfeature, (4, 1), 2, 1),
-            nn.Dropout2d(p=opt.dropout, inplace=True),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.ConvTranspose2d(self.opt.nfeature, self.opt.nfeature, (4, 3), 2, 0)
-        )
+        # self.decoder = nn.Sequential(
+        #     nn.ConvTranspose2d(self.opt.nfeature, self.opt.nfeature, (4, 1), 2, 1),
+        #     nn.Dropout2d(p=opt.dropout, inplace=True),
+        #     nn.LeakyReLU(0.2, inplace=True),
+        #     nn.ConvTranspose2d(self.opt.nfeature, self.opt.nfeature, (4, 3), 2, 0)
+        # )
 
         assert(self.opt.layers == 3) # hardcoded sizes
         self.hidden_size = self.opt.nfeature*3*2
@@ -131,10 +131,11 @@ class u_network(nn.Module):
         # )
 
     def forward(self, h):
-        #h1 = self.encoder(h)
-        #h2 = self.fc(h1.view(-1, self.hidden_size))
-        #h2 = h2.view(h1.size())
-        #h3 = self.decoder(h2)
+        # h1 = self.encoder(h)
+        # h2 = self.fc(h1.view(-1, self.hidden_size))
+        # h2 = h2.view(h1.size())
+        # h3 = self.decoder(h2)
+        # pdb.set_trace()
         h3 = self.fc(h.view(-1, self.opt.nfeature*14*3)).view(h.size())
         return h3
 
