@@ -108,22 +108,34 @@ class u_network(nn.Module):
         assert(self.opt.layers == 3) # hardcoded sizes
         self.hidden_size = self.opt.nfeature*3*2
         self.fc = nn.Sequential(
-            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.Linear(self.opt.nfeature*14*3, self.opt.nfeature*14*3),
             nn.Dropout(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.Linear(self.opt.nfeature*14*3, self.opt.nfeature*14*3),
             nn.Dropout(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(self.hidden_size, self.hidden_size),
+            nn.Linear(self.opt.nfeature*14*3, self.opt.nfeature*14*3),
             nn.Dropout(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
         )
+        # self.fc = nn.Sequential(
+        #     nn.Linear(self.hidden_size, self.hidden_size),
+        #     nn.Dropout(p=opt.dropout, inplace=True),
+        #     nn.LeakyReLU(0.2, inplace=True),
+        #     nn.Linear(self.hidden_size, self.hidden_size),
+        #     nn.Dropout(p=opt.dropout, inplace=True),
+        #     nn.LeakyReLU(0.2, inplace=True),
+        #     nn.Linear(self.hidden_size, self.hidden_size),
+        #     nn.Dropout(p=opt.dropout, inplace=True),
+        #     nn.LeakyReLU(0.2, inplace=True),
+        # )
 
     def forward(self, h):
-        h1 = self.encoder(h)
-        h2 = self.fc(h1.view(-1, self.hidden_size))
-        h2 = h2.view(h1.size())
-        h3 = self.decoder(h2)
+        #h1 = self.encoder(h)
+        #h2 = self.fc(h1.view(-1, self.hidden_size))
+        #h2 = h2.view(h1.size())
+        #h3 = self.decoder(h2)
+        h3 = self.fc(h.view(-1, self.hidden_size)).view(h.size())
         return h3
 
 
@@ -632,10 +644,14 @@ class FwdCNN_VAE(nn.Module):
             z = self.reparameterize(mu_prior, logvar_prior, True)
         return z
 
-    def forward_single_step(self, input_images, input_states, action, z):
+    def forward_single_step(self, input_images, input_states, action, z, hidden=None):
         # encode the inputs (without the action)
         bsize = input_images.size(0)
-        h_x = self.encoder(input_images, input_states)
+        if self.opt.pred_h:
+            if hidden is None:
+                h_x = self.encoder(input_images, input_states)
+            else:
+                h_x = hidden
         z_exp = self.z_expander(z).view(bsize, self.opt.nfeature, self.opt.h_height, self.opt.h_width)
         h_x = h_x.view(bsize, self.opt.nfeature, self.opt.h_height, self.opt.h_width)
         a_emb = self.a_encoder(action).view(h_x.size())
@@ -670,16 +686,10 @@ class FwdCNN_VAE(nn.Module):
         z = None
         for t in range(npred):
             # encode the inputs (without the action)
-            # h_x = self.encoder(input_images, input_states)
+            h_x = self.encoder(input_images, input_states)
             if hasattr(self.opt, 'output_h') and self.opt.output_h:
-                if pred_hidden_variables == []:
-                   h_x = self.encoder(input_images, input_states)
-                else:
-                   h_x = pred_hidden_variables[-1]
                 target_hidden_variables.append(h_x)
-            else:
-                h_x = self.encoder(input_images, input_states)
-                
+
             if sampling is None:
                 # we are training or estimating z distribution
                 target_images, target_states, _ = targets
