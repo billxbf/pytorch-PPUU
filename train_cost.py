@@ -109,11 +109,11 @@ def train(nbatches, npred):
                                                 unnormalize=True, s_mean=model.stats['s_mean'],
                                                 s_std=model.stats['s_std'], pad=1)
             loss = F.binary_cross_entropy(pred_cost.view(opt.batch_size, opt.npred, 3),
-                                          torch.cat([proximity_cost, orientation_cost, confidence_cost], dim=-1))
+                                          torch.stack([proximity_cost, orientation_cost, confidence_cost], dim=-1))
         else:
             lane_cost, prox_map_l = utils.lane_cost(pred_images[:, :, :n_channels].contiguous(), car_sizes)
             loss = F.binary_cross_entropy(pred_cost.view(opt.batch_size, opt.npred, 2),
-                                          torch.cat([proximity_cost, lane_cost], dim=-1))
+                                          torch.stack([proximity_cost, lane_cost], dim=-1))
 
         if not math.isnan(loss.item()):
             loss.backward(retain_graph=False)
