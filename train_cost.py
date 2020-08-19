@@ -76,6 +76,9 @@ optimizer = optim.Adam(cost.parameters(), opt.lrt)
 opt.model_file = opt.model_dir + opt.mfile + '.cost'
 print(f'[will save as: {opt.model_file}]')
 
+# Load normalisation stats
+stats = torch.load('traffic-data/state-action-cost/data_i80_v0/data_stats.pth')
+model.stats = stats  # used by planning.py/compute_uncertainty_batch
 
 def train(nbatches, npred):
     model.train()
