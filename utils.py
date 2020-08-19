@@ -642,7 +642,7 @@ def parse_command_line(parser=None):
     parser.add_argument('-pad', type=int, default=1, help='p for neighborhood region')
     parser.add_argument('-track_grad_norm', type=bool, default=False, help='track grad norm for costs in validation steps')
     parser.add_argument('-output_h', type=bool, default=False, help='output the hidden variables for cost model')
-    parser.add_argument('-pred_h', type=bool, default=False, help='decouple predictor from decoder')
+    parser.add_argument('-detach_h', type=bool, default=False, help='detach hidden variables in fm')
 
     opt = parser.parse_args()
     opt.n_inputs = 4

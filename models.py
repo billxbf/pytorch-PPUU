@@ -91,52 +91,34 @@ class u_network(nn.Module):
     def __init__(self, opt):
         super(u_network, self).__init__()
         self.opt = opt
-        # self.encoder = nn.Sequential(
-        #     nn.Conv2d(self.opt.nfeature, self.opt.nfeature, 4, 2, 1),
-        #     nn.Dropout2d(p=opt.dropout, inplace=True),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        #     nn.Conv2d(self.opt.nfeature, self.opt.nfeature, (4, 1), 2, 1)
-        # )
+        self.encoder = nn.Sequential(
+            nn.Conv2d(self.opt.nfeature, self.opt.nfeature, 4, 2, 1),
+            nn.Dropout2d(p=opt.dropout, inplace=True),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.Conv2d(self.opt.nfeature, self.opt.nfeature, (4, 1), 2, 1)
+        )
 
-        # self.decoder = nn.Sequential(
-        #     nn.ConvTranspose2d(self.opt.nfeature, self.opt.nfeature, (4, 1), 2, 1),
-        #     nn.Dropout2d(p=opt.dropout, inplace=True),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        #     nn.ConvTranspose2d(self.opt.nfeature, self.opt.nfeature, (4, 3), 2, 0)
-        # )
+        self.decoder = nn.Sequential(
+            nn.ConvTranspose2d(self.opt.nfeature, self.opt.nfeature, (4, 1), 2, 1),
+            nn.Dropout2d(p=opt.dropout, inplace=True),
+            nn.LeakyReLU(0.2, inplace=True),
+            nn.ConvTranspose2d(self.opt.nfeature, self.opt.nfeature, (4, 3), 2, 0)
+        )
 
         assert(self.opt.layers == 3) # hardcoded sizes
         self.hidden_size = self.opt.nfeature*3*2
         self.fc = nn.Sequential(
-            nn.Linear(self.opt.nfeature*14*3, self.opt.nfeature*14*3),
+            nn.Linear(self.hidden_size, self.opt.nfeature),
             nn.Dropout(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(self.opt.nfeature*14*3, self.opt.nfeature*14*3),
-            nn.Dropout(p=opt.dropout, inplace=True),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(self.opt.nfeature*14*3, self.opt.nfeature*14*3),
-            nn.Dropout(p=opt.dropout, inplace=True),
-            nn.LeakyReLU(0.2, inplace=True),
+            nn.Linear(self.opt.nfeature, self.hidden_size)
         )
-        # self.fc = nn.Sequential(
-        #     nn.Linear(self.hidden_size, self.hidden_size),
-        #     nn.Dropout(p=opt.dropout, inplace=True),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        #     nn.Linear(self.hidden_size, self.hidden_size),
-        #     nn.Dropout(p=opt.dropout, inplace=True),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        #     nn.Linear(self.hidden_size, self.hidden_size),
-        #     nn.Dropout(p=opt.dropout, inplace=True),
-        #     nn.LeakyReLU(0.2, inplace=True),
-        # )
 
     def forward(self, h):
-        # h1 = self.encoder(h)
-        # h2 = self.fc(h1.view(-1, self.hidden_size))
-        # h2 = h2.view(h1.size())
-        # h3 = self.decoder(h2)
-        # pdb.set_trace()
-        h3 = self.fc(h.view(-1, self.opt.nfeature*14*3)).view(h.size())
+        h1 = self.encoder(h)
+        h2 = self.fc(h1.view(-1, self.hidden_size))
+        h2 = h2.view(h1.size())
+        h3 = self.decoder(h2)
         return h3
 
 
@@ -645,19 +627,17 @@ class FwdCNN_VAE(nn.Module):
             z = self.reparameterize(mu_prior, logvar_prior, True)
         return z
 
-    def forward_single_step(self, input_images, input_states, action, z, hidden=None):
+    def forward_single_step(self, input_images, input_states, action, z):
         # encode the inputs (without the action)
         bsize = input_images.size(0)
-        if self.opt.pred_h:
-            if hidden is None:
-                h_x = self.encoder(input_images, input_states)
-            else:
-                h_x = hidden
+        h_x = self.encoder(input_images, input_states)
         z_exp = self.z_expander(z).view(bsize, self.opt.nfeature, self.opt.h_height, self.opt.h_width)
         h_x = h_x.view(bsize, self.opt.nfeature, self.opt.h_height, self.opt.h_width)
         a_emb = self.a_encoder(action).view(h_x.size())
 
         h = h_x + z_exp
+        if self.opt.detach_h:
+            h.detach()
         h = h + a_emb
         h = h + self.u_network(h)
         pred_image, pred_state = self.decoder(h)
@@ -721,6 +701,8 @@ class FwdCNN_VAE(nn.Module):
             h_x = h_x.view(bsize, self.opt.nfeature, self.opt.h_height, self.opt.h_width)
             h = h_x + z_exp
             a_emb = self.a_encoder(actions[:, t]).view(h.size())
+            if hasattr(self.opt, 'detach_h') and self.opt.detach_h:
+                h.detach()
             h = h + a_emb
             h = h + self.u_network(h)
             if hasattr(self.opt, 'output_h') and self.opt.output_h:
@@ -808,7 +790,8 @@ class CostPredictor(nn.Module):
     def __init__(self, opt):
         super(CostPredictor, self).__init__()
         self.opt = opt
-        self.encoder = encoder(opt, 0, 1)
+        if not opt.pred_from_h:
+            self.encoder = encoder(opt, 0, 1)
         self.hsize = opt.nfeature*self.opt.h_height*self.opt.h_width
         self.proj = nn.Linear(self.hsize, opt.n_hidden)
 
@@ -823,9 +806,12 @@ class CostPredictor(nn.Module):
             nn.Sigmoid()
         )
 
-    def forward(self, state_images, states):
+    def forward(self, state_images, states, hidden=None):
         bsize = state_images.size(0)
-        h = self.encoder(state_images, states).view(bsize, self.hsize)
+        if self.opt.pred_from_h:
+            h = hidden.view(bsize,-1)
+        else:
+            h = self.encoder(state_images, states).view(bsize, self.hsize)
         h = self.proj(h)
         h = self.fc(h)
         return h

@@ -50,6 +50,7 @@ else:
 if type(model) is dict: model = model['model']
 if not hasattr(model.encoder, 'n_channels'):
     model.encoder.n_channels = 3
+model.opt.detach_h = opt.detach_h
 model.opt.lambda_l = opt.lambda_l  # used by planning.py/compute_uncertainty_batch
 model.opt.lambda_o = opt.lambda_o  # used by planning.py/compute_uncertainty_batch
 if opt.value_model != '':

@@ -29,7 +29,7 @@ parser.add_argument('-dropout', type=float, default=0.0, help='regular dropout')
 parser.add_argument('-lrt', type=float, default=0.0001)
 parser.add_argument('-grad_clip', type=float, default=5.0)
 parser.add_argument('-epoch_size', type=int, default=1000)
-parser.add_argument('-mfile', type=str, default='model=fwd-cnn-vae-fp-layers=3-bsize=64-ncond=20-npred=20-lrt=0.0001-nfeature=256-dropout=0.1-nz=32-beta=1e-06-zdropout=0.5-gclip=5.0-warmstart=1-seed=1.step200000.model')
+parser.add_argument('-mfile', type=str, default='model=fwd-cnn-vae-fp-layers=3-bsize=64-ncond=20-npred=20-lrt=0.0001-nfeature=256-dropout=0.1-nz=32-beta=1e-06-zdropout=0.5-gclip=5.0-warmstart=0-seed=1.model')
 #parser.add_argument('-mfile', type=str, default='model=fwd-cnn-layers=3-bsize=64-ncond=20-npred=20-lrt=0.0001-nfeature=256-dropout=0.1-gclip=5.0-warmstart=0-seed=1.step200000.model')
 parser.add_argument('-debug', action='store_true')
 parser.add_argument('-enable_tensorboard', action='store_true',
@@ -37,6 +37,10 @@ parser.add_argument('-enable_tensorboard', action='store_true',
 parser.add_argument('-tensorboard_dir', type=str, default='models',
                     help='path to the directory where to save tensorboard log. If passed empty path' \
                          ' no logs are saved.')
+parser.add_argument('-use_colored_lane', type=bool, default=False)
+parser.add_argument('-pred_from_h', type=bool, default=False)
+parser.add_argument('-detach_h', type=bool, default=False)
+parser.add_argument('-random_action', type=bool, default=False)
 opt = parser.parse_args()
 
 os.system('mkdir -p ' + opt.model_dir)
@@ -45,7 +49,7 @@ random.seed(opt.seed)
 numpy.random.seed(opt.seed)
 torch.manual_seed(opt.seed)
 torch.cuda.manual_seed(opt.seed)
-dataloader = DataLoader(None, opt, opt.dataset)
+dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=opt.use_colored_lane)
 
 
 
@@ -65,6 +69,8 @@ opt.hidden_size = opt.nfeature*opt.h_height*opt.h_width
 
 model = torch.load(opt.model_dir + opt.mfile)
 cost = models.CostPredictor(opt).cuda()
+model = model['model']
+model.opt.detach_h = opt.detach_h
 model.intype('gpu')
 optimizer = optim.Adam(cost.parameters(), opt.lrt)
 opt.model_file = opt.model_dir + opt.mfile + '.cost'
@@ -74,12 +80,38 @@ print(f'[will save as: {opt.model_file}]')
 def train(nbatches, npred):
     model.train()
     total_loss = 0
+    if model.opt.use_colored_lane:
+        n_channels = 4
+    else:
+        n_channels = 3
     for i in range(nbatches):
         optimizer.zero_grad()
-        inputs, actions, targets, _, _ = dataloader.get_batch_fm('train', npred)
-        pred, _ = model(inputs, actions, targets, z_dropout=0)
-        pred_cost = cost(pred[0].view(opt.batch_size*opt.npred, 1, 3, opt.height, opt.width), pred[1].view(opt.batch_size*opt.npred, 1, 4))
-        loss = F.mse_loss(pred_cost.view(opt.batch_size, opt.npred, 2), targets[2])
+        inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('train', npred)
+        #pdb.set_trace()
+        pred, _ = model(inputs[: -1], actions, targets, z_dropout=0)
+        if model.opt.output_h and opt.pred_from_h:
+            pred_cost = cost(pred[2])
+        else:
+            pred_cost = cost(pred[0].view(opt.batch_size*opt.npred, 1, n_channels, opt.height, opt.width), pred[1].view(opt.batch_size*opt.npred, 1, 4))
+        pred_images = pred[0]
+        pred_states = pred[1]
+        proximity_cost, _ = utils.proximity_cost(pred_images[:, :, :n_channels].contiguous(), pred_states.data,
+                                                 car_sizes,
+                                                 green_channel=3 if model.opt.use_colored_lane else 1,
+                                                 unnormalize=True, s_mean=model.stats['s_mean'],
+                                                 s_std=model.stats['s_std'])
+        if model.opt.use_colored_lane:
+            orientation_cost, confidence_cost = utils.orientation_and_confidence_cost(
+                                                pred_images[:, :, :n_channels].contiguous(), pred_states.data, car_size=car_sizes,
+                                                unnormalize=True, s_mean=model.stats['s_mean'],
+                                                s_std=model.stats['s_std'], pad=1)
+            loss = F.binary_cross_entropy(pred_cost.view(opt.batch_size, opt.npred, 3),
+                                          torch.cat([proximity_cost, orientation_cost, confidence_cost], dim=-1))
+        else:
+            lane_cost, prox_map_l = utils.lane_cost(pred_images[:, :, :n_channels].contiguous(), car_sizes)
+            loss = F.binary_cross_entropy(pred_cost.view(opt.batch_size, opt.npred, 2),
+                                          torch.cat([proximity_cost, lane_cost], dim=-1))
+
         if not math.isnan(loss.item()):
             loss.backward(retain_graph=False)
             if not math.isnan(utils.grad_norm(model).item()):
@@ -94,11 +126,36 @@ def train(nbatches, npred):
 def test(nbatches, npred):
     model.train()
     total_loss = 0
+    if model.opt.use_colored_lane:
+        n_channels = 4
+    else:
+        n_channels = 3
     for i in range(nbatches):
-        inputs, actions, targets, _, _ = dataloader.get_batch_fm('valid', npred)
-        pred, _ = model(inputs, actions, targets, z_dropout=0)
-        pred_cost = cost(pred[0].view(opt.batch_size*opt.npred, 1, 3, opt.height, opt.width), pred[1].view(opt.batch_size*opt.npred, 1, 4))
-        loss = F.mse_loss(pred_cost.view(opt.batch_size, opt.npred, 2), targets[2])
+        inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('valid', npred)
+        pred, _ = model(inputs[: -1], actions, targets, z_dropout=0)
+        if model.opt.output_h and opt.pred_from_h:
+            pred_cost = cost(pred[2])
+        else:
+            pred_cost = cost(pred[0].view(opt.batch_size * opt.npred, 1, n_channels, opt.height, opt.width),
+                             pred[1].view(opt.batch_size * opt.npred, 1, 4))
+        pred_images = pred[0]
+        pred_states = pred[1]
+        proximity_cost, _ = utils.proximity_cost(pred_images[:, :, :n_channels].contiguous(), pred_states.data,
+                                                 car_sizes,
+                                                 green_channel=3 if model.opt.use_colored_lane else 1,
+                                                 unnormalize=True, s_mean=model.stats['s_mean'],
+                                                 s_std=model.stats['s_std'])
+        if model.opt.use_colored_lane:
+            orientation_cost, confidence_cost = utils.orientation_and_confidence_cost(
+                                                pred_images[:, :, :n_channels].contiguous(), pred_states.data, car_size=car_sizes,
+                                                unnormalize=True, s_mean=model.stats['s_mean'],
+                                                s_std=model.stats['s_std'], pad=1)
+            loss = F.binary_cross_entropy(pred_cost.view(opt.batch_size, opt.npred, 3),
+                                          torch.cat([proximity_cost, orientation_cost, confidence_cost], dim=-1))
+        else:
+            lane_cost, prox_map_l = utils.lane_cost(pred_images[:, :, :n_channels].contiguous(), car_sizes)
+            loss = F.binary_cross_entropy(pred_cost.view(opt.batch_size, opt.npred, 2),
+                                          torch.cat([proximity_cost, lane_cost], dim=-1))
         if not math.isnan(loss.item()):
             total_loss += loss.item()
         del inputs, actions, targets
