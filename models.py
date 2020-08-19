@@ -135,7 +135,7 @@ class u_network(nn.Module):
         #h2 = self.fc(h1.view(-1, self.hidden_size))
         #h2 = h2.view(h1.size())
         #h3 = self.decoder(h2)
-        h3 = self.fc(h.view(-1, self.hidden_size)).view(h.size())
+        h3 = self.fc(h.view(-1, self.opt.nfeature*14*3)).view(h.size())
         return h3
 
 
