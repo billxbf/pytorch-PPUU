@@ -139,7 +139,7 @@ def test(nbatches, npred):
         inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('valid', npred)
         pred, _ = model(inputs[: -1], actions, targets, z_dropout=0)
         if model.opt.output_h and opt.pred_from_h:
-            pred_cost = cost(pred[2])
+            pred_cost = cost(pred[0].view(opt.batch_size*opt.npred, 1, n_channels, opt.height, opt.width), pred[1].view(opt.batch_size*opt.npred, 1, 4), hidden=pred[2])
         else:
             pred_cost = cost(pred[0].view(opt.batch_size * opt.npred, 1, n_channels, opt.height, opt.width),
                              pred[1].view(opt.batch_size * opt.npred, 1, 4))
