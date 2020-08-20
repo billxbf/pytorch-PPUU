@@ -96,7 +96,7 @@ def train(nbatches, npred):
                                      size=actions[..., 0].size()).cuda()
             actions_y = torch.normal(model.stats['a_mean'][1], model.stats['a_std'][1],
                                      size=actions[..., 1].size()).cuda()
-            actions = torch.cat([actions_x,actions_y], dim=-1)
+            actions = torch.cat([actions_x, actions_y], dim=-1)
             del actions_x, actions_y
         pred, _ = model(inputs[: -1], actions, targets, z_dropout=0)
         if model.opt.output_h and opt.pred_from_h:
@@ -161,11 +161,11 @@ def test(nbatches, npred):
                                                 unnormalize=True, s_mean=model.stats['s_mean'],
                                                 s_std=model.stats['s_std'], pad=1)
             loss = F.binary_cross_entropy(pred_cost.view(opt.batch_size, opt.npred, 3),
-                                          torch.cat([proximity_cost, orientation_cost, confidence_cost], dim=-1).detach())
+                                          torch.stack([proximity_cost, orientation_cost, confidence_cost], dim=-1).detach())
         else:
             lane_cost, prox_map_l = utils.lane_cost(pred_images[:, :, :n_channels].contiguous(), car_sizes)
             loss = F.binary_cross_entropy(pred_cost.view(opt.batch_size, opt.npred, 2),
-                                          torch.cat([proximity_cost, lane_cost], dim=-1).detach())
+                                          torch.stack([proximity_cost, lane_cost], dim=-1).detach())
         if not math.isnan(loss.item()):
             total_loss += loss.item()
         del inputs, actions, targets
