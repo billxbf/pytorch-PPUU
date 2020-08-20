@@ -92,7 +92,12 @@ def train(nbatches, npred):
         inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('train', npred)
         #pdb.set_trace()
         if opt.random_action:
-            actions = torch.normal(model.stats['a_mean'], model.stats['a_std'], size=actions.size())
+            actions_x = torch.normal(model.stats['a_mean'][0], model.stats['a_std'][0],
+                                     size=actions[..., 0].size()).cuda()
+            actions_y = torch.normal(model.stats['a_mean'][1], model.stats['a_std'][1],
+                                     size=actions[..., 1].size()).cuda()
+            actions = torch.cat([actions_x,actions_y], dim=-1)
+            del actions_x, actions_y
         pred, _ = model(inputs[: -1], actions, targets, z_dropout=0)
         if model.opt.output_h and opt.pred_from_h:
             pred_cost = cost(pred[0].view(opt.batch_size*opt.npred, 1, n_channels, opt.height, opt.width), pred[1].view(opt.batch_size*opt.npred, 1, 4), hidden=pred[3].view(opt.batch_size*opt.npred, 1, -1))
