@@ -28,6 +28,7 @@ parser.add_argument('-ncond', type=int, default=20, help='number of conditioning
 parser.add_argument('-npred', type=int, default=20, help='number of predictions to make with unrolled fwd model')
 parser.add_argument('-batch_size', type=int, default=8)
 parser.add_argument('-nfeature', type=int, default=256)
+parser.add_argument('-n_hidden', type=int, default=256)
 parser.add_argument('-beta', type=float, default=0.0, help='coefficient for KL term in VAE')
 parser.add_argument('-ploss', type=str, default='hinge')
 parser.add_argument('-z_dropout', type=float, default=0.0, help='set z=0 with this probability')
