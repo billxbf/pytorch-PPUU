@@ -607,6 +607,7 @@ class FwdCNN_VAE(nn.Module):
             )
 
         if self.opt.cost_decoder:
+            self.opt.pred_from_h = True
             self.cost = CostPredictor(opt)
         self.z_zero = torch.zeros(self.opt.batch_size, self.opt.nz)
         self.z_expander = nn.Linear(opt.nz, opt.hidden_size)
