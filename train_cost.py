@@ -116,11 +116,11 @@ def train(nbatches, npred):
                                                 pred_images[:, :, :n_channels].contiguous(), pred_states.data, car_size=car_sizes,
                                                 unnormalize=True, s_mean=model.stats['s_mean'],
                                                 s_std=model.stats['s_std'], pad=1)
-            loss = F.binary_cross_entropy(pred_cost.view(opt.batch_size, opt.npred, 3),
+            loss = F.mse_loss(pred_cost.view(opt.batch_size, opt.npred, 3),
                                           torch.stack([proximity_cost, orientation_cost, confidence_cost], dim=-1).detach())
         else:
             lane_cost, prox_map_l = utils.lane_cost(pred_images[:, :, :n_channels].contiguous(), car_sizes)
-            loss = F.binary_cross_entropy(pred_cost.view(opt.batch_size, opt.npred, 2),
+            loss = F.mse_loss(pred_cost.view(opt.batch_size, opt.npred, 2),
                                           torch.stack([proximity_cost, lane_cost], dim=-1).detach())
 
         if not math.isnan(loss.item()):
@@ -181,9 +181,9 @@ print('[training]')
 n_iter = 0
 for i in range(200):
     t0 = time.time()
-    scheduler.step()
     train_loss = train(opt.epoch_size, opt.npred)
     valid_loss = test(int(opt.epoch_size / 2), opt.npred)
+    scheduler.step()
     n_iter += opt.epoch_size
     model.intype('cpu')
     torch.save({'model': cost,
