@@ -122,6 +122,9 @@ else:
     optimizer = optim.Adam(model.parameters(), opt.lrt)
     n_iter = 0
 
+stats = torch.load('traffic-data/state-action-cost/data_i80_v0/data_stats.pth')
+model.stats = stats  # used by planning.py/compute_uncertainty_batch
+
 model.cuda()
 
 
