@@ -638,8 +638,6 @@ class FwdCNN_VAE(nn.Module):
         a_emb = self.a_encoder(action).view(h_x.size())
 
         h = h_x + z_exp
-        if self.opt.detach_h:
-            h.detach()
         h = h + a_emb
         h = h + self.u_network(h)
         pred_image, pred_state = self.decoder(h)
@@ -709,8 +707,6 @@ class FwdCNN_VAE(nn.Module):
             h_x = h_x.view(bsize, self.opt.nfeature, self.opt.h_height, self.opt.h_width)
             h = h_x + z_exp
             a_emb = self.a_encoder(actions[:, t]).view(h.size())
-            if hasattr(self.opt, 'detach_h') and self.opt.detach_h:
-                h.detach()
             h = h + a_emb
             h = h + self.u_network(h)
             if hasattr(self.opt, 'output_h') and self.opt.output_h:
@@ -722,7 +718,7 @@ class FwdCNN_VAE(nn.Module):
             pred_image = torch.sigmoid(pred_image + input_images[:, -1].unsqueeze(1)) # possible problem for cost model
             pred_state = pred_state + input_states[:, -1]
             if hasattr(self.opt, 'cost_decoder') and self.opt.cost_decoder:
-                pred_cost=self.cost(pred_image.view(self.opt.batch_size, 1, n_channels, self.opt.height, self.opt.width),
+                pred_cost = self.cost(pred_image.view(self.opt.batch_size, 1, n_channels, self.opt.height, self.opt.width),
                                  pred_state.view(self.opt.batch_size, 1, 4),
                                  hidden=h.view(self.opt.batch_size, 1, -1))
                 pred_costs.append(pred_cost)
@@ -734,15 +730,18 @@ class FwdCNN_VAE(nn.Module):
         pred_images = torch.cat(pred_images, 1)
         pred_states = torch.stack(pred_states, 1)
         z_list = torch.stack(z_list, 1)
+
+        preds = [pred_images, pred_states, z_list]
+        targets = [ploss, ploss2]
         if hasattr(self.opt, 'output_h') and self.opt.output_h:
-            if hasattr(self.opt, 'cost_decoder') and self.opt.cost_decoder:
-                pass
-            else:
-                pred_hidden_variables = torch.stack(pred_hidden_variables, 1)
-                target_hidden_variables = torch.stack(target_hidden_variables, 1)
-                return [pred_images, pred_states, z_list, pred_hidden_variables], [ploss, ploss2, target_hidden_variables]
-        else:
-            return [pred_images, pred_states, z_list], [ploss, ploss2]
+            pred_hidden_variables = torch.stack(pred_hidden_variables, 1)
+            target_hidden_variables = torch.stack(target_hidden_variables, 1)
+            preds.append(pred_hidden_variables)
+            targets.append(target_hidden_variables)
+        if hasattr(self.opt, 'cost_decoder') and self.opt.cost_decoder:
+            pred_costs = torch.stack(pred_costs, 1)
+            preds.append(pred_costs)
+        return preds, targets
 
     def reset_action_buffer(self, npred):
         self.actions_buffer = torch.zeros(npred, self.opt.n_actions).cuda()

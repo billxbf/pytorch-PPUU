@@ -46,6 +46,7 @@ parser.add_argument('-tensorboard_dir', type=str, default='models',
 parser.add_argument('-use_colored_lane', type=bool, default=False, help='use colored lanes for forward model')
 parser.add_argument('-output_h', type=bool, default=False, help='output the hidden variables for cost model')
 parser.add_argument('-pred_h', type=bool, default=False, help='decouple predictor from decoder')
+parser.add_argument('-cost_decoder', type=bool, default=False, help='train cost decoder when training forward model')
 opt = parser.parse_args()
 
 os.system('mkdir -p ' + opt.model_dir)
@@ -74,6 +75,7 @@ opt.model_file += f'-warmstart={opt.warmstart}'
 opt.model_file += f'-seed={opt.seed}'
 opt.model_file += f'-output_h={opt.output_h}'
 opt.model_file += f'-pred_h={opt.pred_h}'
+opt.model_file += f'-cost_dec={opt.cost_decoder}'
 print(f'[will save model as: {opt.model_file}]')
 
 
@@ -127,19 +129,46 @@ model.cuda()
 # loss_s: states
 # loss_p: relative entropy (optional)
 
-def compute_loss(targets, predictions, reduction='mean', output_h=False, pred_h=False, target_hidden_variables=None):
+def compute_loss(targets, predictions, opt, reduction='mean', car_sizes=None):
     target_images = targets[0]
     target_states = targets[1]
-    if output_h:
-        pred_images, pred_states, _, pred_hidden_variables = predictions
-    else:
-        pred_images, pred_states, _ = predictions
+    pred_images = predictions[0]
+    pred_states = predictions[1]
+    n = 2
+    if opt.output_h:
+        pred_hidden_variables = predictions[n]
+        n += 1
+    if opt.cost_decoder:
+        pred_costs = predictions[n]
+    loss_h = None
+    loss_c = None
     loss_i = F.mse_loss(pred_images, target_images, reduction=reduction)
     loss_s = F.mse_loss(pred_states, target_states, reduction=reduction)
-    if pred_h:
+    if opt.output_h and opt.pred_h:
+        target_hidden_variables = targets[-1]
         loss_h = F.mse_loss(pred_hidden_variables[:, :-1, ...], target_hidden_variables[:, 1:, ...], reduction=reduction)
-        return loss_i, loss_s, loss_h
-    return loss_i, loss_s, None
+    if opt.cost_decoder:
+        if opt.use_colored_lane:
+            n_channels = 4
+        else:
+            n_channels = 3
+        proximity_cost, _ = utils.proximity_cost(pred_images[:, :, :n_channels].contiguous(), pred_states.data,
+                                                     car_sizes,
+                                                     green_channel=3 if model.opt.use_colored_lane else 1,
+                                                     unnormalize=True, s_mean=model.stats['s_mean'],
+                                                     s_std=model.stats['s_std'])
+        if model.opt.use_colored_lane:
+            orientation_cost, confidence_cost = utils.orientation_and_confidence_cost(
+                    pred_images[:, :, :n_channels].contiguous(), pred_states.data, car_size=car_sizes,
+                    unnormalize=True, s_mean=model.stats['s_mean'],
+                    s_std=model.stats['s_std'], pad=1)
+            loss_c = F.mse_loss(pred_costs.view(opt.batch_size, opt.npred, 3),
+                                  torch.stack([proximity_cost, orientation_cost, confidence_cost], dim=-1).detach())
+        else:
+            lane_cost, prox_map_l = utils.lane_cost(pred_images[:, :, :n_channels].contiguous(), car_sizes)
+            loss_c = F.mse_loss(pred_costs.view(opt.batch_size, opt.npred, 2),
+                                  torch.stack([proximity_cost, lane_cost], dim=-1).detach())
+    return loss_i, loss_s, loss_h, loss_c
 
 
 def expand(x, actions, nrep):
@@ -157,26 +186,21 @@ def expand(x, actions, nrep):
     else:
         return [images_, states_]
 
-
-
-
-
 def train(nbatches, npred):
     model.train()
-    total_loss_i, total_loss_s, total_loss_p, total_loss_h = 0, 0, 0, 0
+    total_loss_i, total_loss_s, total_loss_p, total_loss_h, total_loss_c = 0, 0, 0, 0, 0
     for i in range(nbatches):
         optimizer.zero_grad()
-        target_hidden_variables = None
-        inputs, actions, targets, _, _ = dataloader.get_batch_fm('train', npred)
+        inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('train', npred)
         pred, loss_target = model(inputs[: -1], actions, targets, z_dropout=opt.z_dropout)
         loss_p = loss_target[0]
-        if opt.output_h and opt.pred_h:
-            target_hidden_variables = loss_target[2]
-        loss_i, loss_s, loss_h = compute_loss(targets, pred, output_h=opt.output_h, pred_h=opt.pred_h,
-                                      target_hidden_variables=target_hidden_variables)
+        loss_i, loss_s, loss_h, loss_c = compute_loss(targets, pred, opt)
         loss = loss_i + loss_s + opt.beta*loss_p
+
         if loss_h is not None:
             loss += loss_h
+        if loss_c is not None:
+            loss += loss_c
 
         # VAEs get NaN loss sometimes, so check for it
         if not math.isnan(loss.item()):
@@ -190,44 +214,47 @@ def train(nbatches, npred):
         total_loss_p += loss_p.item()
         if loss_h is not None:
             total_loss_h += loss_h.item()
+        if loss_c is not None:
+            total_loss_c += loss_c.item()
         del inputs, actions, targets
 
     total_loss_i /= nbatches
     total_loss_s /= nbatches
     total_loss_p /= nbatches
     total_loss_h /= nbatches
-    return total_loss_i, total_loss_s, total_loss_p, total_loss_h
+    total_loss_c /= nbatches
+    return total_loss_i, total_loss_s, total_loss_p, total_loss_h, total_loss_c
 
 
 def test(nbatches):
     model.eval()
-    total_loss_i, total_loss_s, total_loss_p, total_loss_h = 0, 0, 0, 0
+    total_loss_i, total_loss_s, total_loss_p, total_loss_h, total_loss_c = 0, 0, 0, 0, 0
     for i in range(nbatches):
-        target_hidden_variables = None
         inputs, actions, targets, _, _ = dataloader.get_batch_fm('valid')
-
         pred, loss_target = model(inputs[: -1], actions, targets, z_dropout=opt.z_dropout)
         loss_p = loss_target[0]
-        if opt.output_h and opt.pred_h:
-            target_hidden_variables = loss_target[2]
-        loss_i, loss_s, loss_h = compute_loss(targets, pred, output_h=opt.output_h, pred_h=opt.pred_h,
-                                      target_hidden_variables=target_hidden_variables)
+        loss_i, loss_s, loss_h, loss_c = compute_loss(targets, pred, opt)
         loss = loss_i + loss_s + opt.beta*loss_p
         if loss_h is not None:
             loss += loss_h
+        if loss_c is not None:
+            loss += loss_c
 
         total_loss_i += loss_i.item()
         total_loss_s += loss_s.item()
         total_loss_p += loss_p.item()
         if loss_h is not None:
             total_loss_h += loss_h.item()
+        if loss_c is not None:
+            total_loss_c += loss_c.item()
         del inputs, actions, targets
 
-    total_loss_i /= nbatches
-    total_loss_s /= nbatches
-    total_loss_p /= nbatches
-    total_loss_h /= nbatches
-    return total_loss_i, total_loss_s, total_loss_p, total_loss_h
+        total_loss_i /= nbatches
+        total_loss_s /= nbatches
+        total_loss_p /= nbatches
+        total_loss_h /= nbatches
+        total_loss_c /= nbatches
+        return total_loss_i, total_loss_s, total_loss_p, total_loss_h, total_loss_c
 
 writer = utils.create_tensorboard_writer(opt)
 

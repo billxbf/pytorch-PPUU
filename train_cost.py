@@ -39,7 +39,6 @@ parser.add_argument('-tensorboard_dir', type=str, default='models',
                          ' no logs are saved.')
 parser.add_argument('-use_colored_lane', type=bool, default=False)
 parser.add_argument('-pred_from_h', type=bool, default=False)
-parser.add_argument('-detach_h', type=bool, default=False)
 parser.add_argument('-random_action', type=bool, default=False)
 opt = parser.parse_args()
 
@@ -70,7 +69,6 @@ opt.hidden_size = opt.nfeature*opt.h_height*opt.h_width
 model = torch.load(opt.model_dir + opt.mfile)
 cost = models.CostPredictor(opt).cuda()
 model = model['model']
-model.opt.detach_h = opt.detach_h
 model.intype('gpu')
 optimizer = optim.Adam(cost.parameters(), opt.lrt)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.25)
