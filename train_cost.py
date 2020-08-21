@@ -73,6 +73,7 @@ model = model['model']
 model.opt.detach_h = opt.detach_h
 model.intype('gpu')
 optimizer = optim.Adam(cost.parameters(), opt.lrt)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.25)
 opt.model_file = opt.model_dir + opt.mfile + '.cost'
 print(f'[will save as: {opt.model_file}]')
 
@@ -180,6 +181,7 @@ print('[training]')
 n_iter = 0
 for i in range(200):
     t0 = time.time()
+    scheduler.step()
     train_loss = train(opt.epoch_size, opt.npred)
     valid_loss = test(int(opt.epoch_size / 2), opt.npred)
     n_iter += opt.epoch_size
