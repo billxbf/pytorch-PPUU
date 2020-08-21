@@ -198,7 +198,7 @@ def train(nbatches, npred):
         inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('train', npred)
         pred, loss_target = model(inputs[: -1], actions, targets, z_dropout=opt.z_dropout)
         loss_p = loss_target[0]
-        loss_i, loss_s, loss_h, loss_c = compute_loss(targets, pred, opt)
+        loss_i, loss_s, loss_h, loss_c = compute_loss(targets, pred, opt, car_sizes=car_sizes)
         loss = loss_i + loss_s + opt.beta*loss_p
 
         if loss_h is not None:
@@ -234,10 +234,10 @@ def test(nbatches):
     model.eval()
     total_loss_i, total_loss_s, total_loss_p, total_loss_h, total_loss_c = 0, 0, 0, 0, 0
     for i in range(nbatches):
-        inputs, actions, targets, _, _ = dataloader.get_batch_fm('valid')
+        inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('valid')
         pred, loss_target = model(inputs[: -1], actions, targets, z_dropout=opt.z_dropout)
         loss_p = loss_target[0]
-        loss_i, loss_s, loss_h, loss_c = compute_loss(targets, pred, opt)
+        loss_i, loss_s, loss_h, loss_c = compute_loss(targets, pred, opt, car_sizes=car_sizes)
         loss = loss_i + loss_s + opt.beta*loss_p
         if loss_h is not None:
             loss += loss_h
