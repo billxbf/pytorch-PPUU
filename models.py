@@ -606,6 +606,8 @@ class FwdCNN_VAE(nn.Module):
                 nn.Linear(opt.nfeature, 2*opt.nz)
             )
 
+        if self.opt.cost_decoder:
+            self.cost = CostPredictor(opt)
         self.z_zero = torch.zeros(self.opt.batch_size, self.opt.nz)
         self.z_expander = nn.Linear(opt.nz, opt.hidden_size)
 
@@ -659,7 +661,13 @@ class FwdCNN_VAE(nn.Module):
         ploss2 = torch.zeros(1).cuda()
 
         pred_images, pred_states = [], []
+        if hasattr(self.opt, 'cost_decoder') and self.opt.cost_decoder:
+            pred_costs = []
         z_list = []
+        if self.opt.use_colored_lane:
+            n_channels = 4
+        else:
+            n_channels = 3
         if hasattr(self.opt, 'output_h') and self.opt.output_h:
             target_hidden_variables = []
             pred_hidden_variables = []
@@ -713,7 +721,11 @@ class FwdCNN_VAE(nn.Module):
                 pred_state.detach()
             pred_image = torch.sigmoid(pred_image + input_images[:, -1].unsqueeze(1)) # possible problem for cost model
             pred_state = pred_state + input_states[:, -1]
-
+            if hasattr(self.opt, 'cost_decoder') and self.opt.cost_decoder:
+                pred_cost=self.cost(pred_image.view(self.opt.batch_size, 1, n_channels, self.opt.height, self.opt.width),
+                                 pred_state.view(self.opt.batch_size, 1, 4),
+                                 hidden=h.view(self.opt.batch_size, 1, -1))
+                pred_costs.append(pred_cost)
             input_images = torch.cat((input_images[:, 1:], pred_image), 1)
             input_states = torch.cat((input_states[:, 1:], pred_state.unsqueeze(1)), 1)
             pred_images.append(pred_image)
@@ -723,9 +735,12 @@ class FwdCNN_VAE(nn.Module):
         pred_states = torch.stack(pred_states, 1)
         z_list = torch.stack(z_list, 1)
         if hasattr(self.opt, 'output_h') and self.opt.output_h:
-            pred_hidden_variables = torch.stack(pred_hidden_variables, 1)
-            target_hidden_variables = torch.stack(target_hidden_variables, 1)
-            return [pred_images, pred_states, z_list, pred_hidden_variables], [ploss, ploss2, target_hidden_variables]
+            if hasattr(self.opt, 'cost_decoder') and self.opt.cost_decoder:
+                pass
+            else:
+                pred_hidden_variables = torch.stack(pred_hidden_variables, 1)
+                target_hidden_variables = torch.stack(target_hidden_variables, 1)
+                return [pred_images, pred_states, z_list, pred_hidden_variables], [ploss, ploss2, target_hidden_variables]
         else:
             return [pred_images, pred_states, z_list], [ploss, ploss2]
 
@@ -803,13 +818,13 @@ class CostPredictor(nn.Module):
             nn.Linear(opt.n_hidden, opt.n_hidden),
             nn.ReLU(),
             nn.Linear(opt.n_hidden, 3 if opt.use_colored_lane else 2),
-            nn.Sigmoid()
+            nn.Tanh()
         )
 
     def forward(self, state_images, states, hidden=None):
         bsize = state_images.size(0)
         if self.opt.pred_from_h:
-            h = hidden.view(bsize,-1)
+            h = hidden.view(bsize, -1)
         else:
             h = self.encoder(state_images, states).view(bsize, self.hsize)
         h = self.proj(h)
