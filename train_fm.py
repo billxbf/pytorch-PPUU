@@ -138,7 +138,7 @@ def compute_loss(targets, predictions, opt, reduction='mean', car_sizes=None):
     target_states = targets[1]
     pred_images = predictions[0]
     pred_states = predictions[1]
-    n = 2
+    n = 3
     if opt.output_h:
         pred_hidden_variables = predictions[n]
         n += 1
