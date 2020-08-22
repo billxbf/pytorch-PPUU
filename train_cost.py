@@ -40,7 +40,8 @@ parser.add_argument('-tensorboard_dir', type=str, default='models',
 parser.add_argument('-use_colored_lane', type=bool, default=False)
 parser.add_argument('-pred_from_h', type=bool, default=False)
 parser.add_argument('-random_action', type=bool, default=False)
-parser.add_argument('-random_std', type=tuple, default=(-1, -1))
+parser.add_argument('-random_std_v', type=int, default=-1)
+parser.add_argument('-random_std_r', type=int, default=-1)
 opt = parser.parse_args()
 os.system('mkdir -p ' + opt.model_dir)
 
@@ -90,11 +91,11 @@ def train(nbatches, npred):
         inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('train', npred)
         #pdb.set_trace()
         if opt.random_action:
-            if opt.random_std != (-1, -1):
+            if opt.random_std_v != -1 and opt.random_std_r != -1:
                 actions_x = actions[..., 0]
                 actions_y = actions[..., 1]
-                actions_x = torch.normal(actions_x, opt.random_std[0]).cuda()
-                actions_y = torch.normal(actions_y, opt.random_std[1]).cuda()
+                actions_x = torch.normal(actions_x, opt.random_std_v).cuda()
+                actions_y = torch.normal(actions_y, opt.random_std_r).cuda()
                 actions = torch.stack([actions_x, actions_y], dim=-1)
             else:
                 actions_x = torch.normal(model.stats['a_mean'][0], model.stats['a_std'][0],
