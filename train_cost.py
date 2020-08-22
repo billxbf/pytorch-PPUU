@@ -40,8 +40,8 @@ parser.add_argument('-tensorboard_dir', type=str, default='models',
 parser.add_argument('-use_colored_lane', type=bool, default=False)
 parser.add_argument('-pred_from_h', type=bool, default=False)
 parser.add_argument('-random_action', type=bool, default=False)
+parser.add_argument('-random_std', type=int, default=-1)
 opt = parser.parse_args()
-
 os.system('mkdir -p ' + opt.model_dir)
 
 random.seed(opt.seed)
@@ -78,7 +78,6 @@ print(f'[will save as: {opt.model_file}]')
 # Load normalisation stats
 stats = torch.load('traffic-data/state-action-cost/data_i80_v0/data_stats.pth')
 model.stats = stats  # used by planning.py/compute_uncertainty_batch
-
 def train(nbatches, npred):
     model.train()
     total_loss = 0
@@ -91,11 +90,14 @@ def train(nbatches, npred):
         inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('train', npred)
         #pdb.set_trace()
         if opt.random_action:
-            actions_x = torch.normal(model.stats['a_mean'][0], model.stats['a_std'][0],
-                                     size=actions[..., 0].size()).cuda()
-            actions_y = torch.normal(model.stats['a_mean'][1], model.stats['a_std'][1],
-                                     size=actions[..., 1].size()).cuda()
-            actions = torch.cat([actions_x, actions_y], dim=-1)
+            if opt.random_std != -1:
+                actions = torch.normal(actions, opt.random_std)
+            else:
+                actions_x = torch.normal(model.stats['a_mean'][0], model.stats['a_std'][0],
+                                         size=actions[..., 0].size()).cuda()
+                actions_y = torch.normal(model.stats['a_mean'][1], model.stats['a_std'][1],
+                                         size=actions[..., 1].size()).cuda()
+                actions = torch.cat([actions_x, actions_y], dim=-1)
             del actions_x, actions_y
         pred, _ = model(inputs[: -1], actions, targets, z_dropout=0)
         if model.opt.output_h and opt.pred_from_h:
