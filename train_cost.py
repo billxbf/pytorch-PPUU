@@ -40,8 +40,8 @@ parser.add_argument('-tensorboard_dir', type=str, default='models',
 parser.add_argument('-use_colored_lane', type=bool, default=False)
 parser.add_argument('-pred_from_h', type=bool, default=False)
 parser.add_argument('-random_action', type=bool, default=False)
-parser.add_argument('-random_std_v', type=int, default=-1)
-parser.add_argument('-random_std_r', type=int, default=-1)
+parser.add_argument('-random_std_v', type=float, default=-1)
+parser.add_argument('-random_std_r', type=float, default=-1)
 opt = parser.parse_args()
 os.system('mkdir -p ' + opt.model_dir)
 
