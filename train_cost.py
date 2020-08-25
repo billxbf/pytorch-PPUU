@@ -45,7 +45,7 @@ parser.add_argument('-random_std_r', type=float, default=-1)
 parser.add_argument('-cost_dropout', type=bool, default=False)
 opt = parser.parse_args()
 os.system('mkdir -p ' + opt.model_dir)
-
+os.system('mkdir -p ' + opt.model_dir + "cost_models/")
 random.seed(opt.seed)
 numpy.random.seed(opt.seed)
 torch.manual_seed(opt.seed)
@@ -74,7 +74,7 @@ model = model['model']
 model.intype('gpu')
 optimizer = optim.Adam(cost.parameters(), opt.lrt)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.25)
-opt.model_file = opt.model_dir + opt.mfile + '.cost'
+opt.model_file = opt.model_dir + "cost_models/" + opt.mfile + '.cost'
 opt.model_file += f'-random={opt.random_action}'
 opt.model_file += f'-std_v={opt.random_std_v}'
 opt.model_file += f'-std_r={opt.random_std_r}'
@@ -145,7 +145,7 @@ def train(nbatches, npred):
     return total_loss
 
 def test(nbatches, npred):
-    model.train()
+    model.eval()
     total_loss = 0
     if model.opt.use_colored_lane:
         n_channels = 4
