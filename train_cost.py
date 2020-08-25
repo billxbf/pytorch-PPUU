@@ -42,6 +42,7 @@ parser.add_argument('-pred_from_h', type=bool, default=False)
 parser.add_argument('-random_action', type=bool, default=False)
 parser.add_argument('-random_std_v', type=float, default=-1)
 parser.add_argument('-random_std_r', type=float, default=-1)
+parser.add_argument('-cost_dropout', type=bool, default=False)
 opt = parser.parse_args()
 os.system('mkdir -p ' + opt.model_dir)
 
@@ -74,6 +75,10 @@ model.intype('gpu')
 optimizer = optim.Adam(cost.parameters(), opt.lrt)
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.25)
 opt.model_file = opt.model_dir + opt.mfile + '.cost'
+opt.model_file += f'-random={opt.random_action}'
+opt.model_file += f'-std_v={opt.random_std_v}'
+opt.model_file += f'-std_r={opt.random_std_r}'
+opt.model_file += f'-c_dropout={opt.cost_dropout}'
 print(f'[will save as: {opt.model_file}]')
 
 # Load normalisation stats
