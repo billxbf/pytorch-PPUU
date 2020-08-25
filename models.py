@@ -812,6 +812,17 @@ class CostPredictor(nn.Module):
 
         self.fc = nn.Sequential(
             nn.Linear(opt.n_hidden, opt.n_hidden),
+            nn.ReLU(),
+            nn.Linear(opt.n_hidden, opt.n_hidden),
+            nn.ReLU(),
+            nn.Linear(opt.n_hidden, opt.n_hidden),
+            nn.ReLU(),
+            nn.Linear(opt.n_hidden, 3 if opt.use_colored_lane else 2),
+            nn.Tanh()
+        )
+        '''
+        self.fc = nn.Sequential(
+            nn.Linear(opt.n_hidden, opt.n_hidden),
             nn.Dropout(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(opt.n_hidden, opt.n_hidden),
@@ -823,7 +834,7 @@ class CostPredictor(nn.Module):
             nn.Linear(opt.n_hidden, 3 if opt.use_colored_lane else 2),
             nn.Tanh()
         )
-
+        '''
     def forward(self, state_images, states, hidden=None):
         bsize = state_images.size(0)
         if self.opt.pred_from_h:
