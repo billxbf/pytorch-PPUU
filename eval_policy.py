@@ -171,6 +171,7 @@ def parse_args():
     )
     parser.add_argument('-map', type=str, default='i80', help=' ')
     parser.add_argument('-v', type=str, default='3', help=' ')
+    parser.add_argument('-dataset', type=str, default='i80')
     parser.add_argument('-seed', type=int, default=333333, help=' ')
     # planning params
     parser.add_argument('-method', type=str, default='bprop',
@@ -369,7 +370,7 @@ def process_one_episode(opt,
             images.append(input_images[-1])
             states.append(input_states[-1])
             if opt.colored_lane is not None:
-                costs.append([cost['pixel_proximity_cost'], cost['orientation_cost'], cost['confidence_cost']])
+                costs.append([cost['pixel_proximity_cost'], cost['orientation_cost'], cost['position_cost']])
             else:
                 costs.append([cost['pixel_proximity_cost'], cost['lane_cost']])
             cost_sequence.append(cost)
@@ -466,9 +467,9 @@ def main():
     numpy.random.seed(opt.seed)
     torch.manual_seed(opt.seed)
 
-    data_path = 'traffic-data/state-action-cost/data_i80_v0'
+    data_path = opt.dataset
 
-    dataloader = DataLoader(None, opt, 'i80', use_colored_lane=True if opt.colored_lane is not None else False)
+    dataloader = DataLoader(None, opt, 'opt.dataset', use_colored_lane=True if opt.colored_lane is not None else False)
     (
         forward_model,
         value_function,

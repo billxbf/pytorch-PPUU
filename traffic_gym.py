@@ -485,8 +485,8 @@ class Car:
             orientation_cost = np.mean(s * (
                 np.max(np.stack([-cosdis + math.cos(5 / 180 * math.pi) / 2, np.zeros_like(cosdis)], axis=2),
                           axis=2)[0]) ** 2)
-            conf_cost = np.mean((1 - v) ** 2)
-            lane_cost = [orientation_cost, conf_cost]
+            position_cost = np.mean((1 - v) ** 2)
+            lane_cost = [orientation_cost, position_cost]
 
         # Compute x/y minimum distance to other vehicles (pixel version)
         # Account for 1 metre overlap (low data accuracy)
@@ -577,7 +577,7 @@ class Car:
         if colored_lane is not None:
             cost = dict(
                 orientation_cost=self._states_image[-1][1][0],
-                confidence_cost=self._states_image[-1][1][1],
+                position_cost=self._states_image[-1][1][1],
                 pixel_proximity_cost=self._states_image[-1][2],
                 collisions_per_frame=self.collisions_per_frame,
                 arrived_to_dst=self.arrived_to_dst,
@@ -1154,16 +1154,16 @@ class Simulator(core.Env):
         soft_threshold = 0.85
         #lane_image = self.trajectory_image[:, :, 0:3] / np.expand_dims(self.trajectory_image[:, :, 2] + 1e-6, axis=2)
         lane_image = self.trajectory_image[:, :, 0:3]
-        conf_threshold = 5
+        position_threshold = 100
         lane_image[:, :, 0:2] /= np.expand_dims(self.trajectory_image[:, :, 2] + 1e-6, axis=2)
-        lane_image[:, :, 2] = np.min(np.stack([lane_image[:, :, 2], np.ones_like(lane_image[:, :, 2])*conf_threshold],
-                                              axis=-1), axis=-1) / conf_threshold
+        lane_image[:, :, 2] = np.min(np.stack([lane_image[:, :, 2], np.ones_like(lane_image[:, :, 2])*position_threshold],
+                                              axis=-1), axis=-1) / position_threshold
         d = lane_image[:, :, 0:2]
         phi = np.linalg.norm(d, axis=2)
         phi = 1. / (1. + np.exp(-50 * (phi - soft_threshold)))
         lane_image[:, :, 0] = (d[:, :, 0] * phi) * 0.5 + 0.5
         lane_image[:, :, 1] = (d[:, :, 1] * phi) * 0.5 + 0.5
-        plt.imsave("actrajectory.jpg", np.transpose(lane_image, (1, 0, 2)))
+        plt.imsave("100actrajectory.jpg", np.transpose(lane_image, (1, 0, 2)))
 
     def _pause(self):
         pause = True

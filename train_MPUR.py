@@ -57,9 +57,21 @@ if opt.value_model != '':
     model.value_function = value_function
 
 # Create policy
-model.create_policy_net(opt)
-optimizer = optim.Adam(model.policy_net.parameters(), opt.lrt)  # POLICY optimiser ONLY!
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100, gamma=0.25)
+if os.path.isfile(opt.model_file + '.model'):
+    filename = opt.model_file + '.model'
+    print(f'[loading previous checkpoint: {filename}]')
+    checkpoint = torch.load(filename)
+    model = checkpoint['model']
+    model.cuda()
+    optimizer = optim.Adam(model.parameters(), opt.lrt)
+    optimizer.load_state_dict(checkpoint['optimizer'])
+    n_iter = checkpoint['n_iter']
+    utils.log(opt.model_file + '.log', '[resuming from checkpoint]')
+else:
+    model.create_policy_net(opt)
+    optimizer = optim.Adam(model.policy_net.parameters(), opt.lrt)  # POLICY optimiser ONLY!
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50_000/opt.epoch_size, gamma=0.1)
+
 # Load normalisation stats
 stats = torch.load('traffic-data/state-action-cost/data_i80_v0/data_stats.pth')
 model.stats = stats  # used by planning.py/compute_uncertainty_batch
@@ -97,15 +109,15 @@ def start(what, nbatches, npred, track=False, pad=1):
         total_losses = dict(
             proximity=0,
             uncertainty=0,
-            confidence=0,
+            position=0,
             orientation=0,
             action=0,
             policy=0,
         )
         if opt.track_grad_norm:
             total_grads = dict(
-                proximity_confidence_orientation=0,
-                confidence=0,
+                proximity_position_orientation=0,
+                position=0,
                 orientation=0,
             )
     else:
@@ -132,7 +144,7 @@ def start(what, nbatches, npred, track=False, pad=1):
                              opt.u_reg * pred['uncertainty'] + \
                              opt.lambda_o * pred['orientation'] + \
                              opt.lambda_a * pred['action'] + \
-                             opt.lambda_l * pred['confidence']
+                             opt.lambda_l * pred['position']
         else:
             pred['policy'] = pred['proximity'] + \
                              opt.u_reg * pred['uncertainty'] + \
@@ -154,16 +166,16 @@ def start(what, nbatches, npred, track=False, pad=1):
                     pred['policy'].backward()  # back-propagation through time!
                     a_grad_norm[0] += utils.a_grad_norm(model.policy_net).item()
                     optimizer.zero_grad()
-                    pred['policy'] = opt.lambda_l * pred['confidence']
+                    pred['policy'] = opt.lambda_l * pred['position']
                     pred['policy'].backward()  # back-propagation through time!
                     a_grad_norm[1] += utils.a_grad_norm(model.policy_net).item()
                     optimizer.zero_grad()
-                    pred['policy'] = pred['proximity'] + opt.lambda_o * pred['orientation'] + opt.lambda_l * pred['confidence']
+                    pred['policy'] = pred['proximity'] + opt.lambda_o * pred['orientation'] + opt.lambda_l * pred['position']
                     pred['policy'].backward()  # back-propagation through time!
                     a_grad_norm[2] += utils.a_grad_norm(model.policy_net).item()
                     total_grads['orientation'] += a_grad_norm[0]
-                    total_grads['confidence'] += a_grad_norm[1]
-                    total_grads['proximity_confidence_orientation'] += a_grad_norm[2]
+                    total_grads['position'] += a_grad_norm[1]
+                    total_grads['proximity_position_orientation'] += a_grad_norm[2]
                 else:
                     optimizer.zero_grad()
                     pred['policy'] = opt.lambda_l * pred['lane']
@@ -205,7 +217,7 @@ n_iter = 0
 if opt.use_colored_lane:
     losses = OrderedDict(
         p='proximity',
-        c='confidence',
+        c='position',
         o='orientation',
         u='uncertainty',
         a='action',
@@ -213,8 +225,8 @@ if opt.use_colored_lane:
     )
     if opt.track_grad_norm:
         grads = OrderedDict(
-        p='proximity_confidence_orientation',
-        c='confidence',
+        p='proximity_position_orientation',
+        c='position',
         o='orientation',
     )
 else:

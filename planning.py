@@ -50,9 +50,13 @@ def compute_uncertainty_batch(model, input_images, input_states, actions, target
 
     model.train()  # turn on dropout, for uncertainty estimation
     pred_images, pred_states = [], []
+    hidden = None
     for t in range(npred):
         z = Z_rep[:, t]
-        pred_image, pred_state = model.forward_single_step(input_images, input_states, actions[:, t], z)
+        if model.opt.output_h:
+            pred_image, pred_state, _ = model.forward_single_step(input_images, input_states, actions[:, t], z)
+        else:
+            pred_image, pred_state = model.forward_single_step(input_images, input_states, actions[:, t], z)
         if detach:
             pred_image.detach_()
             pred_state.detach_()
@@ -69,10 +73,19 @@ def compute_uncertainty_batch(model, input_images, input_states, actions, target
         pred_images = torch.stack(pred_images, 1)[:, 0]
         pred_states = torch.stack(pred_states, 1)[:, 0]
 
+    if model.opt.use_colored_lane:
+        n_channels = 4
+    else:
+        n_channels = 3
+
     if hasattr(model, 'cost'):
-        pred_costs = model.cost(pred_images.view(-1, 3, 117, 24), pred_states.data.view(-1, 4))
-        pred_costs = pred_costs.view(n_models, bsize, npred, 2)
-        pred_costs = pred_costs[:, :, :, 0] + model.opt.lambda_l * pred_costs[:, :, :, 1]
+        pred_costs = model.cost(pred_images.view(-1, n_channels, 117, 24), pred_states.data.view(-1, 4))
+        if model.opt.use_colored_lane:
+            pred_costs = pred_costs.view(n_models, bsize, npred, 3)
+            pred_costs = pred_costs[:, :, :, 0] + model.opt.lambda_o * pred_costs[:, :, :, 1] + model.opt.lambda_l * pred_costs[:, :, :, 2]
+        else:
+            pred_costs = pred_costs.view(n_models, bsize, npred, 2)
+            pred_costs = pred_costs[:, :, :, 0] + model.opt.lambda_l * pred_costs[:, :, :, 1]
         if detach:
             pred_costs.detach_()
     else:
@@ -83,11 +96,11 @@ def compute_uncertainty_batch(model, input_images, input_states, actions, target
             car_sizes_temp, green_channel=3 if model.opt.use_colored_lane else 1,
             unnormalize=True, s_mean=model.stats['s_mean'], s_std=model.stats['s_std'])
         if model.opt.use_colored_lane:
-            orientation_cost, confidence_cost = utils.orientation_and_confidence_cost(
+            orientation_cost, position_cost = utils.orientation_and_position_cost(
                 pred_images, pred_states.data,
                 car_size=car_sizes_temp,
                 unnormalize=True, s_mean=model.stats['s_mean'], s_std=model.stats['s_std'], pad=pad)
-            pred_costs += model.opt.lambda_o * orientation_cost + model.opt.lambda_l * confidence_cost
+            pred_costs += model.opt.lambda_o * orientation_cost + model.opt.lambda_l * position_cost
         else:
             lane_cost, prox_map_l = utils.lane_cost(pred_images, car_sizes_temp)
             offroad_cost = utils.offroad_cost(pred_images, prox_map_l)
@@ -250,15 +263,15 @@ def plan_actions_backprop(model, input_images, input_states, car_sizes, npred=50
             uncertainty_loss = torch.zeros(1)
 
         if model.opt.use_colored_lane is True:
-            orientation_loss, confidence_loss = utils.orientation_and_confidence_cost(pred_images, pred_states.data,
+            orientation_loss, position_loss = utils.orientation_and_position_cost(pred_images, pred_states.data,
                                                                                       car_size=car_sizes.expand(n_futures, 2),
                                                                                       unnormalize=True,
                                                                                       s_mean=model.stats['s_mean'],
                                                                                       s_std=model.stats['s_std'],
                                                                                       pad=pad)
             orientation_loss = torch.mean(orientation_loss * gamma_mask[:, :npred])
-            confidence_loss = torch.mean(confidence_loss * gamma_mask[:, :npred])
-            loss = loss + lambda_l * confidence_loss + lambda_o * orientation_loss
+            position_loss = torch.mean(position_loss * gamma_mask[:, :npred])
+            loss = loss + lambda_l * position_loss + lambda_o * orientation_loss
         else:
             lane_loss, prox_map_l = utils.lane_cost(pred_images, car_sizes.expand(n_futures, 2))
             lane_loss = torch.mean(lane_loss * gamma_mask[:, :npred])
@@ -323,7 +336,12 @@ def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampli
             z_t = model.reparameterize(mu, logvar, True)
         else:
             z_t = Z[t]
-        pred_image, pred_state = model.forward_single_step(input_images[:, :, :n_channels].contiguous(), input_states, actions, z_t)
+        if model.opt.output_h:
+            pred_image, pred_state, _ = model.forward_single_step(input_images[:, :, :n_channels].contiguous(),
+                                                               input_states, actions, z_t)
+        else:
+            pred_image, pred_state = model.forward_single_step(input_images[:, :, :n_channels].contiguous(),
+                                                               input_states, actions, z_t)
         # Auto regress: enqueue output as new element of the input
         pred_image = torch.cat((pred_image, input_ego_car[:, :1]), dim=2)
         input_images = torch.cat((input_images[:, 1:], pred_image), 1)
@@ -375,7 +393,7 @@ def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampli
         if n_updates_z > 0:
             proximity_cost = 0.5 * proximity_cost + 0.5 * pred_cost_adv.squeeze()
         if model.opt.use_colored_lane:
-            orientation_cost, confidence_cost = utils.orientation_and_confidence_cost(
+            orientation_cost, position_cost = utils.orientation_and_position_cost(
                                                 pred_images[:, :, :n_channels].contiguous(), pred_states.data, car_size=car_sizes,
                                                 unnormalize=True, s_mean=model.stats['s_mean'],
                                                 s_std=model.stats['s_std'], pad=pad)
@@ -388,23 +406,28 @@ def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampli
         else:
             v = torch.zeros(bsize, 1).cuda()
     else:
-        pred_costs = model.cost(pred_images[:, :, :n_channels].contiguous().view(-1, n_channels, 117, 24), pred_states.data.view(-1, 4))
-        pred_costs = pred_costs.view(bsize, npred, 2)
+        pred_costs = model.cost(pred_images.view(-1, n_channels, 117, 24), pred_states.data.view(-1, 4))
+        if model.opt.use_colored_lane:
+            pred_costs = pred_costs.view(bsize, npred, 3)
+            orientation_cost = pred_costs[:, :, 1]
+            position_cost = pred_costs[:, :, 2]
+        else:
+            pred_costs = pred_costs.view(bsize, npred, 2)
+            lane_cost = pred_costs[:, :, 1]
         proximity_cost = pred_costs[:, :, 0]
-        lane_cost = pred_costs[:, :, 1]
 
     if hasattr(model, 'value_function'):
         proximity_loss = torch.mean(torch.cat((proximity_cost, v), 1) * gamma_mask)
         if model.opt.use_colored_lane:
             orientation_loss = torch.mean(orientation_cost * gamma_mask[:, :npred])
-            confidence_loss = torch.mean(confidence_cost * gamma_mask[:, :npred])
+            position_loss = torch.mean(position_cost * gamma_mask[:, :npred])
         else:
             lane_loss = torch.mean(lane_cost * gamma_mask[:, :npred])
     else:
         proximity_loss = torch.mean(proximity_cost * gamma_mask[:, :npred])
         if model.opt.use_colored_lane:
             orientation_loss = torch.mean(orientation_cost * gamma_mask[:, :npred])
-            confidence_loss = torch.mean(confidence_cost * gamma_mask[:, :npred])
+            position_loss = torch.mean(position_cost * gamma_mask[:, :npred])
         else:
             lane_loss = torch.mean(lane_cost * gamma_mask[:, :npred])
             offroad_cost = torch.mean(offroad_cost * gamma_mask[:, :npred])
@@ -424,7 +447,7 @@ def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampli
             state_vct=pred_states,
             proximity=proximity_loss,
             orientation=orientation_loss,
-            confidence=confidence_loss,
+            position=position_loss,
             uncertainty=total_u_loss,
             action=loss_a,
         )

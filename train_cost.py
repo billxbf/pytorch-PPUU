@@ -122,12 +122,12 @@ def train(nbatches, npred):
                                                  unnormalize=True, s_mean=model.stats['s_mean'],
                                                  s_std=model.stats['s_std'])
         if model.opt.use_colored_lane:
-            orientation_cost, confidence_cost = utils.orientation_and_confidence_cost(
+            orientation_cost, position_cost = utils.orientation_and_position_cost(
                                                 pred_images[:, :, :n_channels].contiguous(), pred_states.data, car_size=car_sizes,
                                                 unnormalize=True, s_mean=model.stats['s_mean'],
                                                 s_std=model.stats['s_std'], pad=1)
             loss = F.mse_loss(pred_cost.view(opt.batch_size, opt.npred, 3),
-                                          torch.stack([proximity_cost, orientation_cost, confidence_cost], dim=-1).detach())
+                                          torch.stack([proximity_cost, orientation_cost, position_cost], dim=-1).detach())
         else:
             lane_cost, prox_map_l = utils.lane_cost(pred_images[:, :, :n_channels].contiguous(), car_sizes)
             loss = F.mse_loss(pred_cost.view(opt.batch_size, opt.npred, 2),
@@ -167,12 +167,12 @@ def test(nbatches, npred):
                                                  unnormalize=True, s_mean=model.stats['s_mean'],
                                                  s_std=model.stats['s_std'])
         if model.opt.use_colored_lane:
-            orientation_cost, confidence_cost = utils.orientation_and_confidence_cost(
+            orientation_cost, position_cost = utils.orientation_and_position_cost(
                                                 pred_images[:, :, :n_channels].contiguous(), pred_states.data, car_size=car_sizes,
                                                 unnormalize=True, s_mean=model.stats['s_mean'],
                                                 s_std=model.stats['s_std'], pad=1)
             loss = F.mse_loss(pred_cost.view(opt.batch_size, opt.npred, 3),
-                                          torch.stack([proximity_cost, orientation_cost, confidence_cost], dim=-1).detach())
+                                          torch.stack([proximity_cost, orientation_cost, position_cost], dim=-1).detach())
         else:
             lane_cost, prox_map_l = utils.lane_cost(pred_images[:, :, :n_channels].contiguous(), car_sizes)
             loss = F.mse_loss(pred_cost.view(opt.batch_size, opt.npred, 2),

@@ -166,7 +166,7 @@ def proximity_cost(images, states, car_size=(6.4, 14.3), green_channel=1, unnorm
     #    costs = torch.max((proximity_mask * images[:, :, green_channel].float()).view(bsize, npred, -1), 2)[0]
     return costs.view(bsize, npred), proximity_mask
 
-def orientation_and_confidence_cost(images, states, pad, car_size=(6.4, 14.3), unnormalize=False, s_mean=None, s_std=None):
+def orientation_and_position_cost(images, states, pad, car_size=(6.4, 14.3), unnormalize=False, s_mean=None, s_std=None):
     SCALE = 0.25
     bsize, npred, nchannels, crop_h, crop_w = images.size()
     images = images.view(bsize * npred, nchannels, crop_h, crop_w)
@@ -177,9 +177,6 @@ def orientation_and_confidence_cost(images, states, pad, car_size=(6.4, 14.3), u
         states = states + s_mean.view(1, 4).expand(states.size()).cuda()
 
     speed = states[:, 2:] * SCALE  # pixel/s
-    width, length = car_size[:, 0], car_size[:, 1]  # feet
-    width = width * SCALE * (0.3048 * 24 / 3.7)  # pixels
-    length = length * SCALE * (0.3048 * 24 / 3.7)  # pixels
 
     images = images.view(bsize, npred, nchannels, crop_h, crop_w)
     neighbourhood_array = images[:, :, :3, crop_h//2-pad:crop_h//2+pad+1, crop_w//2-pad:crop_w//2+pad+1]
@@ -192,72 +189,9 @@ def orientation_and_confidence_cost(images, states, pad, car_size=(6.4, 14.3), u
     orientation_cost = torch.mean(torch.mean(s * (
                 torch.max(torch.stack([-cosdis + math.cos(5 / 180 * math.pi)/2, torch.zeros_like(cosdis)], dim=2),
                           dim=2)[0])**2, dim=-1), dim=-1)
-    conf_cost = torch.mean(torch.mean((1-v)**2, dim=-1), dim=-1)
+    position_cost = -torch.log(torch.mean(torch.mean(v, dim=-1), dim=-1)*(1-math.exp(-1))+math .exp(-1))
 
-    # orientation_cost = -torch.mean(torch.mean(torch.log(torch.max(torch.stack([1 - s * (
-    #             torch.max(torch.stack([-cosdis + math.cos(5 / 180 * math.pi)/2, torch.zeros_like(cosdis)], dim=2),
-    #                       dim=2)[0]), torch.zeros_like(cosdis)+1e-6], dim=2), dim=2)[0]), dim=-1), dim=-1)
-    # conf_cost = -torch.log(torch.mean(torch.mean(v, dim=-1),dim=-1)*(1-math.exp(-1))+math .exp(-1))
-
-    # orientation_cost = -torch.log(1 - s * (torch.max(torch.stack([-cosdis + math.cos(5 / 180 * math.pi), torch.zeros_like(cosdis)], dim=1), dim=1)[0] / 2))
-    # orientation_cost = orientation_cost.view(bsize, npred)
-    # conf_cost = -torch.log(v)  # (1-v)**2
-    # dmap = torch.stack([torch.mean(torch.mean(2 * (neighbourhood_array[:, :, 0] - 0.5), dim=-1), dim=-1),
-    #                         torch.mean(torch.mean(2 * (neighbourhood_array[:, :, 1] - 0.5), dim=-1), dim=-1)], dim=2).view(-1,2).cuda()
-    # v = torch.mean(torch.mean(neighbourhood_array[:, :, 2], dim=-1), dim=-1)
-    # s = dmap.norm(2, 1)
-    # cosdis = (speed[:, 0]*dmap[:, 0]+speed[:, 1]*dmap[:, 1]) / (speed.norm(2, 1) * dmap.norm(2, 1) + 1e-6)
-    # orientation_cost = -torch.log(1 - s * (torch.max(torch.stack([-cosdis + math.cos(5 / 180 * math.pi), torch.zeros_like(cosdis)], dim=1), dim=1)[0] / 2))
-    # orientation_cost = orientation_cost.view(bsize, npred)
-    # conf_cost = -torch.log(v)  # (1-v)**2
-    # lanes_hsv = torch.as_tensor(rgb_to_hsv(neighbourhood_array)).cuda()
-    # h = torch.mean(lanes_hsv[:, :, 0])
-    # s = torch.mean(lanes_hsv[:, :, 1])
-    # v = torch.mean(lanes_hsv[:, :, 2])
-    # rad = math.atan(xy_speed[1] / (xy_speed[0] + 1e-6))
-    # rad = (rad + math.pi / 2) / math.pi
-    # if xy_speed[0] > 0:
-    #     h_self = rad * 0.5
-    # else:
-    #     h_self = rad * 0.5 + 0.5
-    # if h_self > h:
-    #     rotation = max(min((h_self - h) ** 2, (h_self - h - 1) ** 2) - (5 / 180 * math.pi) ** 2, 0.)
-    # else:
-    #     rotation = max(min((h - h_self) ** 2, (h - h_self - 1) ** 2) - (5 / 180 * math.pi) ** 2, 0.)
-    # orientation_cost = s * rotation
-    # conf_cost = (1 - v) ** 2
-    return orientation_cost.view(bsize, npred), conf_cost.view(bsize, npred)
-
-def offroad_pixel_cost(images, states, pad, car_size=(6.4, 14.3), unnormalize=False, s_mean=None, s_std=None):
-    SCALE = 0.25
-    bsize, npred, nchannels, crop_h, crop_w = images.size()
-    images = images.view(bsize * npred, nchannels, crop_h, crop_w)
-    states = states.view(bsize * npred, 4).clone()
-
-    if unnormalize:
-        states = states * (1e-8 + s_std.view(1, 4).expand(states.size())).cuda()
-        states = states + s_mean.view(1, 4).expand(states.size()).cuda()
-
-    speed = states[:, 2:] * SCALE  # pixel/s
-    width, length = car_size[:, 0], car_size[:, 1]  # feet
-    width = width * SCALE * (0.3048 * 24 / 3.7)  # pixels
-    length = length * SCALE * (0.3048 * 24 / 3.7)  # pixels
-
-    images = images.view(bsize, npred, nchannels, crop_h, crop_w)
-
-    neighbourhood_array = images[:, :, :3, crop_h//2-pad:crop_h//2+pad+1, crop_w//2-pad:crop_w//2+pad+1]
-    dmap = torch.stack([2 * (neighbourhood_array[:, :, 0] - 0.5),
-                             2 * (neighbourhood_array[:, :, 1] - 0.5)], dim=2).cuda()
-    v = neighbourhood_array[:, :, 2]
-    s = dmap.norm(2, 2)
-    speed = speed.view(bsize, npred, 2).unsqueeze(dim=-1).unsqueeze(dim=-1)
-    cosdis = (speed[:, :, 0] * dmap[:, :, 0] + speed[:, :, 1] * dmap[:, :, 1]) / (2 * speed.norm(2, 2) * dmap.norm(2, 2) + 1e-6)
-    orientation_cost = torch.mean(torch.mean(s * (
-                torch.max(torch.stack([-cosdis + math.cos(5 / 180 * math.pi)/2, torch.zeros_like(cosdis)], dim=2),
-                          dim=2)[0])**2, dim=-1), dim=-1)
-    conf_cost = torch.mean(torch.mean((1-v)**2, dim=-1), dim=-1)
-
-    return orientation_cost.view(bsize, npred), conf_cost.view(bsize, npred)
+    return orientation_cost.view(bsize, npred), position_cost.view(bsize, npred)
 
 def parse_car_path(path):
     splits = path.split('/')
@@ -271,7 +205,7 @@ def parse_car_path(path):
 
 
 def plot_mean_and_CI(mean, lb, ub, color_mean=None, color_shading=None):
-    # plot the shaded range of the confidence intervals                                                                                                                                                   
+    # plot the shaded range of the confidence intervals
     time_steps = [i + 3 for i in range(len(mean))]
     plt.fill_between(time_steps, ub, lb,
                      color=color_shading, alpha=0.2)
