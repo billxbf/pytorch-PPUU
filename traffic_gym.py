@@ -435,7 +435,7 @@ class Car:
         if state[2][1] and (state[2][1] - self)[0] < self.safe_distance: return False
         return True
 
-    def _get_observation_image(self, m, screen_surface, width_height, scale, global_frame, colored_lane=None):
+    def _get_observation_image(self, m, screen_surface, width_height, scale, global_frame, colored_lane=None, position_threshold=1):
         d = self._direction
 
         x_y = np.ceil(np.array((abs(d) @ width_height, abs(d) @ width_height[::-1])))
@@ -485,7 +485,9 @@ class Car:
             orientation_cost = np.mean(s * (
                 np.max(np.stack([-cosdis + math.cos(5 / 180 * math.pi) / 2, np.zeros_like(cosdis)], axis=2),
                           axis=2)[0]) ** 2)
-            position_cost = np.mean((1 - v) ** 2)
+            position_cost = -np.log(np.mean(np.mean(np.max(np.stack([v, torch.ones_like(v)*position_threshold],
+                                                                           axis=-1), axis=-1)[0], axis=-1), axis=-1)
+                               *(1-math.exp(-1))+math.exp(-1))
             lane_cost = [orientation_cost, position_cost]
 
         # Compute x/y minimum distance to other vehicles (pixel version)

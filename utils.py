@@ -166,7 +166,8 @@ def proximity_cost(images, states, car_size=(6.4, 14.3), green_channel=1, unnorm
     #    costs = torch.max((proximity_mask * images[:, :, green_channel].float()).view(bsize, npred, -1), 2)[0]
     return costs.view(bsize, npred), proximity_mask
 
-def orientation_and_position_cost(images, states, pad, car_size=(6.4, 14.3), unnormalize=False, s_mean=None, s_std=None):
+def orientation_and_position_cost(images, states, pad, car_size=(6.4, 14.3), unnormalize=False, s_mean=None, s_std=None,
+                                  position_threshold=1):
     SCALE = 0.25
     bsize, npred, nchannels, crop_h, crop_w = images.size()
     images = images.view(bsize * npred, nchannels, crop_h, crop_w)
@@ -189,7 +190,9 @@ def orientation_and_position_cost(images, states, pad, car_size=(6.4, 14.3), unn
     orientation_cost = torch.mean(torch.mean(s * (
                 torch.max(torch.stack([-cosdis + math.cos(5 / 180 * math.pi)/2, torch.zeros_like(cosdis)], dim=2),
                           dim=2)[0])**2, dim=-1), dim=-1)
-    position_cost = -torch.log(torch.mean(torch.mean(v, dim=-1), dim=-1)*(1-math.exp(-1))+math .exp(-1))
+    position_cost = -torch.log(torch.mean(torch.mean(torch.max(torch.stack([v, torch.ones_like(v)*position_threshold],
+                                                                           dim=-1), dim=-1), dim=-1), dim=-1)
+                               * (1-math.exp(-1))+math.exp(-1))
 
     return orientation_cost.view(bsize, npred), position_cost.view(bsize, npred)
 
