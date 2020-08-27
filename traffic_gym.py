@@ -484,9 +484,9 @@ class Car:
                         2 * np.linalg.norm(d, 2, 0) * np.linalg.norm(dmap, 2, 2) + 1e-6)
             orientation_cost = np.mean(s * (
                 np.max(np.stack([-cosdis + math.cos(5 / 180 * math.pi) / 2, np.zeros_like(cosdis)], axis=2),
-                          axis=2)[0]) ** 2)
+                          axis=2)) ** 2)
             position_cost = -np.log(np.mean(np.mean(np.max(np.stack([v*100, np.ones_like(v)*position_threshold],
-                                                                           axis=-1), axis=-1)[0], axis=-1), axis=-1)
+                                                                           axis=-1), axis=-1), axis=-1), axis=-1)
                                *(1-math.exp(-1))+math.exp(-1))
             lane_cost = [orientation_cost, position_cost]
 
