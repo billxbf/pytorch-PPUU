@@ -557,7 +557,7 @@ def parse_command_line(parser=None):
     parser.add_argument('-z_updates', type=int, default=0)
     parser.add_argument('-infer_z', action='store_true')
     parser.add_argument('-gamma', type=float, default=0.99)
-    parser.add_argument('-learned_cost', action='store_true')
+    parser.add_argument('-learned_cost', type=str, default='1001')
     m1 = 'model=fwd-cnn-vae-fp-layers=3-bsize=64-ncond=20-npred=20-lrt=0.0001-nfeature=256-dropout=0.1-nz=32-' + \
          'beta=1e-06-zdropout=0.5-gclip=5.0-warmstart=1-seed=1.step200000.model'
     m2 = 'model=fwd-cnn-layers=3-bsize=64-ncond=20-npred=20-lrt=0.0001-nfeature=256-dropout=0.1-gclip=5.0-' + \

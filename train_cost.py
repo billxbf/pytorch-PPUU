@@ -39,10 +39,10 @@ parser.add_argument('-tensorboard_dir', type=str, default='models',
                          ' no logs are saved.')
 parser.add_argument('-use_colored_lane', type=bool, default=False)
 parser.add_argument('-pred_from_h', type=bool, default=False)
-parser.add_argument('-random_action', type=bool, default=False)
+parser.add_argument('-random_action', type=int, default=0)
 parser.add_argument('-random_std_v', type=float, default=-1)
 parser.add_argument('-random_std_r', type=float, default=-1)
-parser.add_argument('-cost_dropout', type=bool, default=False)
+parser.add_argument('-cost_dropout', type=int, default=0)
 opt = parser.parse_args()
 os.system('mkdir -p ' + opt.model_dir)
 os.system('mkdir -p ' + opt.model_dir + "cost_models/")
@@ -95,7 +95,7 @@ def train(nbatches, npred):
         optimizer.zero_grad()
         inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('train', npred)
         #pdb.set_trace()
-        if opt.random_action:
+        if opt.random_action == 1:
             if opt.random_std_v != -1 and opt.random_std_r != -1:
                 actions_x = actions[..., 0]
                 actions_y = actions[..., 1]

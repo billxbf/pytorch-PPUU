@@ -406,7 +406,7 @@ def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampli
         else:
             v = torch.zeros(bsize, 1).cuda()
     else:
-        pred_costs = model.cost(pred_images.view(-1, n_channels, 117, 24), pred_states.data.view(-1, 4))
+        pred_costs = model.cost(pred_images[:, :, :n_channels].contiguous().view(-1, n_channels, 117, 24), pred_states.data.view(-1, 4))
         if model.opt.use_colored_lane:
             pred_costs = pred_costs.view(bsize, npred, 3)
             orientation_cost = pred_costs[:, :, 1]

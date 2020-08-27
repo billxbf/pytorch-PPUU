@@ -87,9 +87,17 @@ for k, v in stats.items():
     if isinstance(v, torch.Tensor):
         model.policy_net.stats_d[k] = v.to(opt.device)
 
-if opt.learned_cost:
+if opt.learned_cost!= ' ':
     print('[loading cost regressor]')
-    model.cost = torch.load(path.join(opt.model_dir, opt.mfile + '.cost.model'))['model']
+    cost_name=''
+    value = ['1.0','0.5','0.1']
+    tf = ['False','True']
+    cost_name+='-random='+tf[int(opt.learned_cost[0])]
+    cost_name+='-std_v='+value[int(opt.learned_cost[1])]+'-std_r='+value[int(opt.learned_cost[2])]
+    cost_name+='-c_dropout='+tf[int(opt.learned_cost[3])]
+
+    model.cost = torch.load(path.join(opt.model_dir,'cost_models', opt.mfile + '.cost'+cost_name+'.model'))['model']
+
 
 dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=model.opt.use_colored_lane)
 model.train()

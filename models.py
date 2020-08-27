@@ -810,7 +810,7 @@ class CostPredictor(nn.Module):
         self.hsize = opt.nfeature*self.opt.h_height*self.opt.h_width
         self.proj = nn.Linear(self.hsize, opt.n_hidden)
 
-        if opt.cost_dropout:
+        if opt.cost_dropout == 1:
             self.fc = nn.Sequential(
                 nn.Linear(opt.n_hidden, opt.n_hidden),
                 nn.Dropout(p=opt.dropout, inplace=True),
