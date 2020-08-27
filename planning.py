@@ -53,7 +53,7 @@ def compute_uncertainty_batch(model, input_images, input_states, actions, target
     hidden = None
     for t in range(npred):
         z = Z_rep[:, t]
-        if model.opt.output_h:
+        if hasattr(model.opt, 'output_h') and model.opt.output_h:
             pred_image, pred_state, _ = model.forward_single_step(input_images, input_states, actions[:, t], z)
         else:
             pred_image, pred_state = model.forward_single_step(input_images, input_states, actions[:, t], z)
@@ -336,7 +336,7 @@ def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampli
             z_t = model.reparameterize(mu, logvar, True)
         else:
             z_t = Z[t]
-        if model.opt.output_h:
+        if hasattr(model.opt, 'output_h') and model.opt.output_h:
             pred_image, pred_state, _ = model.forward_single_step(input_images[:, :, :n_channels].contiguous(),
                                                                input_states, actions, z_t)
         else:
