@@ -162,7 +162,7 @@ class DataLoader:
     # get batch to use for forward modeling
     # a sequence of ncond given states, a sequence of npred actions,
     # and a sequence of npred states to be predicted
-    def get_batch_fm(self, split, npred=-1, cuda=True):
+    def get_batch_fm(self, split, npred=-1, cuda=True, position_threshold=1):
 
         # Choose the correct device
         device = torch.device('cuda') if cuda else torch.device('cpu')
@@ -211,6 +211,8 @@ class DataLoader:
         ego_cars = torch.stack(ego_cars)
         if self.use_colored_lane:
             lane_images = torch.stack(lane_images)
+            lane_images[:,:,2,:,:] = torch.max(torch.stack([lane_images[:,:,2,:,:]*100,
+                                                            torch.ones_like(lane_images[:,:,2,:,:])*position_threshold], dim=2), dim=2)[0]
             images = torch.cat([lane_images,images[:,:,1,:,:].unsqueeze(dim=2)],dim=2) # Only use green channel
             del lane_images
 

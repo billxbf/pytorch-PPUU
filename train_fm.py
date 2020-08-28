@@ -46,8 +46,8 @@ parser.add_argument('-tensorboard_dir', type=str, default='models',
                          ' no logs are saved.')
 parser.add_argument('-use_colored_lane', type=bool, default=False, help='use colored lanes for forward model')
 parser.add_argument('-output_h', type=bool, default=False, help='output the hidden variables for cost model')
-parser.add_argument('-pred_h', type=bool, default=False, help='decouple predictor from decoder')
-parser.add_argument('-cost_decoder', type=bool, default=False, help='train cost decoder when training forward model')
+parser.add_argument('-ksize', type=int, default=7, help='kernel size for blurring')
+parser.add_argument('-position_threshold', type=int, default=1, help='threshold for position cost')
 opt = parser.parse_args()
 
 os.system('mkdir -p ' + opt.model_dir)
@@ -75,8 +75,8 @@ if opt.grad_clip != -1:
 opt.model_file += f'-warmstart={opt.warmstart}'
 opt.model_file += f'-seed={opt.seed}'
 opt.model_file += f'-output_h={opt.output_h}'
-opt.model_file += f'-pred_h={opt.pred_h}'
-opt.model_file += f'-cost_dec={opt.cost_decoder}'
+opt.model_file += f'-ksize={opt.ksize}'
+opt.model_file += f'-pt={opt.position_threshold}'
 print(f'[will save model as: {opt.model_file}]')
 
 
@@ -122,7 +122,7 @@ else:
     optimizer = optim.Adam(model.parameters(), opt.lrt)
     n_iter = 0
 
-stats = torch.load('traffic-data/state-action-cost/data_i80_v0/data_stats.pth')
+stats = torch.load(opt.dataset+'data_stats.pth')
 model.stats = stats  # used by planning.py/compute_uncertainty_batch
 
 model.cuda()
@@ -142,16 +142,16 @@ def compute_loss(targets, predictions, opt, reduction='mean', car_sizes=None):
     if opt.output_h:
         pred_hidden_variables = predictions[n]
         n += 1
-    if opt.cost_decoder:
+    if hasattr(opt,"cost_decoder") and opt.cost_decoder:
         pred_costs = predictions[n]
     loss_h = None
     loss_c = None
     loss_i = F.mse_loss(pred_images, target_images, reduction=reduction)
     loss_s = F.mse_loss(pred_states, target_states, reduction=reduction)
-    if opt.output_h and opt.pred_h:
+    if opt.output_h and hasattr(opt, 'pred_h') and opt.pred_h:
         target_hidden_variables = targets[-1]
         loss_h = F.mse_loss(pred_hidden_variables[:, :-1, ...], target_hidden_variables[:, 1:, ...], reduction=reduction)
-    if opt.cost_decoder:
+    if hasattr(opt,"cost_decoder") and opt.cost_decoder:
         if opt.use_colored_lane:
             n_channels = 4
         else:
@@ -165,7 +165,7 @@ def compute_loss(targets, predictions, opt, reduction='mean', car_sizes=None):
             orientation_cost, position_cost = utils.orientation_and_position_cost(
                     pred_images[:, :, :n_channels].contiguous(), pred_states.data, car_size=car_sizes,
                     unnormalize=True, s_mean=model.stats['s_mean'],
-                    s_std=model.stats['s_std'], pad=1)
+                    s_std=model.stats['s_std'], pad=1, position_threshold=opt.position_threshold)
             loss_c = F.mse_loss(pred_costs.view(opt.batch_size, opt.npred, 3),
                                   torch.stack([proximity_cost, orientation_cost, position_cost], dim=-1).detach())
         else:
@@ -195,7 +195,7 @@ def train(nbatches, npred):
     total_loss_i, total_loss_s, total_loss_p, total_loss_h, total_loss_c = 0, 0, 0, 0, 0
     for i in range(nbatches):
         optimizer.zero_grad()
-        inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('train', npred)
+        inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('train', npred, position_threshold=opt.position_threshold)
         pred, loss_target = model(inputs[: -1], actions, targets, z_dropout=opt.z_dropout)
         loss_p = loss_target[0]
         loss_i, loss_s, loss_h, loss_c = compute_loss(targets, pred, opt, car_sizes=car_sizes)
@@ -234,7 +234,7 @@ def test(nbatches):
     model.eval()
     total_loss_i, total_loss_s, total_loss_p, total_loss_h, total_loss_c = 0, 0, 0, 0, 0
     for i in range(nbatches):
-        inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('valid')
+        inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('valid', position_threshold=opt.position_threshold)
         pred, loss_target = model(inputs[: -1], actions, targets, z_dropout=opt.z_dropout)
         loss_p = loss_target[0]
         loss_i, loss_s, loss_h, loss_c = compute_loss(targets, pred, opt, car_sizes=car_sizes)
