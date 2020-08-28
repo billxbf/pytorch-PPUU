@@ -606,7 +606,7 @@ class FwdCNN_VAE(nn.Module):
                 nn.Linear(opt.nfeature, 2*opt.nz)
             )
 
-        if self.opt.cost_decoder:
+        if hasattr(opt,'cost_decoder') and self.opt.cost_decoder:
             self.opt.pred_from_h = True
             self.cost = CostPredictor(opt)
         self.z_zero = torch.zeros(self.opt.batch_size, self.opt.nz)
