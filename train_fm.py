@@ -124,6 +124,8 @@ else:
     optimizer = optim.Adam(model.parameters(), opt.lrt)
     n_iter = 0
 
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=200000/opt.epoch_size, gamma=0.1)
+
 stats = torch.load(opt.dataset+'data_stats.pth')
 model.stats = stats  # used by planning.py/compute_uncertainty_batch
 
@@ -269,7 +271,7 @@ for i in range(200):
     t0 = time.time()
     train_losses = train(opt.epoch_size, opt.npred)
     valid_losses = test(int(opt.epoch_size / 2))
-
+    scheduler.step()
     if writer is not None:
         writer.add_scalar('Loss/train_state_img', train_losses[0], i)
         writer.add_scalar('Loss/train_state_vct', train_losses[1], i)
