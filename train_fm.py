@@ -52,6 +52,8 @@ opt = parser.parse_args()
 
 os.system('mkdir -p ' + opt.model_dir)
 
+opt.dataset = f"traffic-data/state-action-cost-{opt.ksize}/data_i80_v0/"
+
 random.seed(opt.seed)
 numpy.random.seed(opt.seed)
 torch.manual_seed(opt.seed)
