@@ -435,7 +435,7 @@ class Car:
         if state[2][1] and (state[2][1] - self)[0] < self.safe_distance: return False
         return True
 
-    def _get_observation_image(self, m, screen_surface, width_height, scale, global_frame, colored_lane=None, position_threshold=1):
+    def _get_observation_image(self, m, screen_surface, width_height, scale, global_frame, colored_lane=None, cost_threshold=1):
         d = self._direction
 
         x_y = np.ceil(np.array((abs(d) @ width_height, abs(d) @ width_height[::-1])))
@@ -485,8 +485,8 @@ class Car:
             orientation_cost = np.mean(s * (
                 np.max(np.stack([-cosdis + math.cos(5 / 180 * math.pi) / 2, np.zeros_like(cosdis)], axis=2),
                           axis=2)) ** 2)
-            position_cost = -np.log(np.mean(np.mean(np.min(np.stack([v*100, np.ones_like(v)*position_threshold],
-                                                                           axis=-1), axis=-1)/position_threshold, axis=-1), axis=-1)
+            position_cost = -np.log(np.mean(np.mean(np.min(np.stack([v*100, np.ones_like(v)*cost_threshold],
+                                                                           axis=-1), axis=-1)/cost_threshold, axis=-1), axis=-1)
                                *(1-math.exp(-1))+math.exp(-1))
             lane_cost = [orientation_cost, position_cost]
 
@@ -551,7 +551,8 @@ class Car:
         elif object_name == 'lane_image':
             self._lanes_image.append(self._get_observation_image(*object_))
 
-    def get_last(self, n, done, norm_state=False, return_reward=False, gamma=0.99, colored_lane=None):
+    def get_last(self, n, done, norm_state=False, return_reward=False, gamma=0.99, colored_lane=None, fm_position_threshold=1,
+                 draw_position_threshold=100):
         if len(self._states_image) < n: return None  # no enough samples
         # n × (state_image, lane_cost, proximity_cost, frame) ->
         # -> (n × state_image, n × lane_cost, n × proximity_cost, n × frame)
@@ -574,6 +575,9 @@ class Car:
         if norm_state is not False:  # normalise the states, if requested
             states = states.sub(norm_state['s_mean']).div(norm_state['s_std'])  # N(0, 1) range
             state_images = state_images.float().div(255)  # [0, 1] range
+        if colored_lane is not None:
+            state_images[:,2,:,:]= np.min(np.stack([state_images[:,2,:,:], np.ones_like(state_images[:,2,:,:])*draw_position_threshold],
+                                              axis=1), axis=1) / fm_position_threshold
         observation = dict(context=state_images, state=states)
 
         if colored_lane is not None:
@@ -683,7 +687,8 @@ class Simulator(core.Env):
     def __init__(self, display=True, nb_lanes=4, fps=30, delta_t=None, traffic_rate=15, state_image=False, store=False,
                  policy_type='hardcoded', nb_states=0, data_dir='', normalise_action=False, normalise_state=False,
                  return_reward=False, gamma=0.99, show_frame_count=True, store_simulator_video=False,
-                 draw_colored_lane=False, colored_lane=None, draw_speed_map=False, speed_map=None):
+                 draw_colored_lane=False, colored_lane=None, draw_speed_map=False, speed_map=None, fm_position_threshold=1,
+                 draw_position_threshold=100):
 
         # Observation spaces definition
         self.observation_space = spaces.Box(low=-1, high=1, shape=(nb_states, STATE_D + STATE_C * STATE_H * STATE_W),
@@ -745,7 +750,8 @@ class Simulator(core.Env):
         self.colored_lane = colored_lane
         self.draw_speed_map = draw_speed_map
         self.speed_map = speed_map
-
+        self.fm_position_threshold = fm_position_threshold
+        self.draw_position_threshold = draw_position_threshold
     def seed(self, seed=None):
         self.random.seed(seed)
 
@@ -1156,10 +1162,9 @@ class Simulator(core.Env):
         soft_threshold = 0.85
         #lane_image = self.trajectory_image[:, :, 0:3] / np.expand_dims(self.trajectory_image[:, :, 2] + 1e-6, axis=2)
         lane_image = self.trajectory_image[:, :, 0:3]
-        position_threshold = 100
         lane_image[:, :, 0:2] /= np.expand_dims(self.trajectory_image[:, :, 2] + 1e-6, axis=2)
-        lane_image[:, :, 2] = np.min(np.stack([lane_image[:, :, 2], np.ones_like(lane_image[:, :, 2])*position_threshold],
-                                              axis=-1), axis=-1) / position_threshold
+        lane_image[:, :, 2] = np.min(np.stack([lane_image[:, :, 2], np.ones_like(lane_image[:, :, 2])*self.draw_position_threshold],
+                                              axis=-1), axis=-1) / self.draw_position_threshold
         d = lane_image[:, :, 0:2]
         phi = np.linalg.norm(d, axis=2)
         phi = 1. / (1. + np.exp(-50 * (phi - soft_threshold)))

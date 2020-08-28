@@ -155,7 +155,7 @@ def compute_loss(targets, predictions, opt, reduction='mean', car_sizes=None):
     if opt.output_h and hasattr(opt, 'pred_h') and opt.pred_h:
         target_hidden_variables = targets[-1]
         loss_h = F.mse_loss(pred_hidden_variables[:, :-1, ...], target_hidden_variables[:, 1:, ...], reduction=reduction)
-    if hasattr(opt,"cost_decoder") and opt.cost_decoder:
+    if hasattr(opt, "cost_decoder") and opt.cost_decoder:
         if opt.use_colored_lane:
             n_channels = 4
         else:
@@ -169,7 +169,7 @@ def compute_loss(targets, predictions, opt, reduction='mean', car_sizes=None):
             orientation_cost, position_cost = utils.orientation_and_position_cost(
                     pred_images[:, :, :n_channels].contiguous(), pred_states.data, car_size=car_sizes,
                     unnormalize=True, s_mean=model.stats['s_mean'],
-                    s_std=model.stats['s_std'], pad=1, position_threshold=opt.position_threshold)
+                    s_std=model.stats['s_std'], pad=1, cost_threshold=opt.cost_threshold)
             loss_c = F.mse_loss(pred_costs.view(opt.batch_size, opt.npred, 3),
                                   torch.stack([proximity_cost, orientation_cost, position_cost], dim=-1).detach())
         else:

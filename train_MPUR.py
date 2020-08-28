@@ -52,6 +52,7 @@ if not hasattr(model.encoder, 'n_channels'):
     model.encoder.n_channels = 3
 model.opt.lambda_l = opt.lambda_l  # used by planning.py/compute_uncertainty_batch
 model.opt.lambda_o = opt.lambda_o  # used by planning.py/compute_uncertainty_batch
+opt.position_threshold = model.opt.threshold
 if opt.value_model != '':
     value_function = torch.load(path.join(opt.model_dir, 'value_functions', opt.value_model)).to(opt.device)
     model.value_function = value_function
@@ -102,11 +103,12 @@ if opt.learned_cost!= '':
 dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=model.opt.use_colored_lane)
 model.train()
 model.opt.u_hinge = opt.u_hinge
-planning.estimate_uncertainty_stats(model, dataloader, n_batches=50, npred=opt.npred, pad=opt.pad)
+planning.estimate_uncertainty_stats(model, dataloader, n_batches=50, npred=opt.npred, pad=opt.pad,
+                                    position_threshold=opt.position_threshold, cost_threshold=opt.cost_threshold)
 model.eval()
 
 
-def start(what, nbatches, npred, track=False, pad=1):
+def start(what, nbatches, npred, track=False, pad=1, position_threshold=1, cost_threshold=1):
     train = True if what is 'train' else False
     model.train()
     model.policy_net.train()
@@ -143,10 +145,10 @@ def start(what, nbatches, npred, track=False, pad=1):
                 lane=0,
             )
     for j in range(nbatches):
-        inputs, actions, targets, ids, car_sizes = dataloader.get_batch_fm(what, npred)
+        inputs, actions, targets, ids, car_sizes = dataloader.get_batch_fm(what, npred, position_threshold=position_threshold)
         pred, actions = planning.train_policy_net_mpur(
             model, inputs, targets, car_sizes, n_models=10, lrt_z=opt.lrt_z,
-            n_updates_z=opt.z_updates, infer_z=opt.infer_z, pad=pad)
+            n_updates_z=opt.z_updates, infer_z=opt.infer_z, pad=pad, cost_threshold=cost_threshold)
         if opt.use_colored_lane:
             pred['policy'] = pred['proximity'] + \
                              opt.u_reg * pred['uncertainty'] + \
@@ -255,13 +257,16 @@ else:
 writer = utils.create_tensorboard_writer(opt)
 
 for i in range(500):
-    train_losses = start('train', opt.epoch_size, opt.npred, pad=opt.pad)
+    train_losses = start('train', opt.epoch_size, opt.npred, pad=opt.pad, position_threshold=opt.position_threshold,
+                         cost_threshold=opt.cost_threshold)
     a_grad = []
     if opt.track_grad_norm:
-        valid_losses = start('valid', opt.epoch_size // 2, opt.npred, track=True, pad=opt.pad)
+        valid_losses = start('valid', opt.epoch_size // 2, opt.npred, track=True, pad=opt.pad, position_threshold=opt.position_threshold,
+                         cost_threshold=opt.cost_threshold)
     else:
         with torch.no_grad():  # Torch, please please please, do not track computations :)
-            valid_losses = start('valid', opt.epoch_size // 2, opt.npred, pad=opt.pad)
+            valid_losses = start('valid', opt.epoch_size // 2, opt.npred, pad=opt.pad, position_threshold=opt.position_threshold,
+                         cost_threshold=opt.cost_threshold)
     scheduler.step()
     if writer is not None:
         for key in train_losses:

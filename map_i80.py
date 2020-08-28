@@ -327,6 +327,7 @@ class I80(Simulator):
             self.controlled_car['v_id'] = vehicle_id
         self.frame = frame - int(self.delta_t * 10)
         self.vehicles_history = set()
+
         # # Account for off-track vehicles
         # with open('off_track.pkl', 'rb') as f:
         #     self.off_track = pickle.load(f)
@@ -478,7 +479,9 @@ class I80(Simulator):
                 norm_state=self.normalise_state and self.data_stats,
                 return_reward=self.return_reward,
                 gamma=self.gamma,
-                colored_lane=self.colored_lane
+                colored_lane=self.colored_lane,
+                fm_position_threshold=self.fm_position_threshold,
+                draw_position_threshold=self.draw_position_threshold
             )
             if return_: return return_
 

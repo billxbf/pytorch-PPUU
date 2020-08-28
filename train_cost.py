@@ -43,6 +43,7 @@ parser.add_argument('-random_action', type=int, default=0)
 parser.add_argument('-random_std_v', type=float, default=-1)
 parser.add_argument('-random_std_r', type=float, default=-1)
 parser.add_argument('-cost_dropout', type=int, default=0)
+parser.add_argument('-cost_threshold', type=int, default=1, help='threshold for position cost')
 opt = parser.parse_args()
 os.system('mkdir -p ' + opt.model_dir)
 os.system('mkdir -p ' + opt.model_dir + "cost_models/")
@@ -79,6 +80,7 @@ opt.model_file += f'-random={opt.random_action}'
 opt.model_file += f'-std_v={opt.random_std_v}'
 opt.model_file += f'-std_r={opt.random_std_r}'
 opt.model_file += f'-c_dropout={opt.cost_dropout}'
+opt.model_file += f'-ct={opt.cost_threshold}'
 print(f'[will save as: {opt.model_file}]')
 
 # Load normalisation stats
@@ -93,7 +95,7 @@ def train(nbatches, npred):
         n_channels = 3
     for i in range(nbatches):
         optimizer.zero_grad()
-        inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('train', npred)
+        inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('train', npred, position_threshold=model.opt.position_threshold)
         #pdb.set_trace()
         if opt.random_action == 1:
             if opt.random_std_v != -1 and opt.random_std_r != -1:
@@ -125,7 +127,7 @@ def train(nbatches, npred):
             orientation_cost, position_cost = utils.orientation_and_position_cost(
                                                 pred_images[:, :, :n_channels].contiguous(), pred_states.data, car_size=car_sizes,
                                                 unnormalize=True, s_mean=model.stats['s_mean'],
-                                                s_std=model.stats['s_std'], pad=1)
+                                                s_std=model.stats['s_std'], pad=1, cost_threshold=opt.cost_threshold)
             loss = F.mse_loss(pred_cost.view(opt.batch_size, opt.npred, 3),
                                           torch.stack([proximity_cost, orientation_cost, position_cost], dim=-1).detach())
         else:
@@ -152,7 +154,7 @@ def test(nbatches, npred):
     else:
         n_channels = 3
     for i in range(nbatches):
-        inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('valid', npred)
+        inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('valid', npred, position_threshold=model.opt.position_threshold)
         pred, _ = model(inputs[: -1], actions, targets, z_dropout=0)
         if model.opt.output_h and opt.pred_from_h:
             pred_cost = cost(pred[0].view(opt.batch_size*opt.npred, 1, n_channels, opt.height, opt.width), pred[1].view(opt.batch_size*opt.npred, 1, 4), hidden=pred[3].view(opt.batch_size*opt.npred, 1, -1))
@@ -170,7 +172,7 @@ def test(nbatches, npred):
             orientation_cost, position_cost = utils.orientation_and_position_cost(
                                                 pred_images[:, :, :n_channels].contiguous(), pred_states.data, car_size=car_sizes,
                                                 unnormalize=True, s_mean=model.stats['s_mean'],
-                                                s_std=model.stats['s_std'], pad=1)
+                                                s_std=model.stats['s_std'], pad=1, cost_threshold=opt.cost_threshold)
             loss = F.mse_loss(pred_cost.view(opt.batch_size, opt.npred, 3),
                                           torch.stack([proximity_cost, orientation_cost, position_cost], dim=-1).detach())
         else:

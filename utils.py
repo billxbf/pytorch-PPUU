@@ -167,7 +167,7 @@ def proximity_cost(images, states, car_size=(6.4, 14.3), green_channel=1, unnorm
     return costs.view(bsize, npred), proximity_mask
 
 def orientation_and_position_cost(images, states, pad, car_size=(6.4, 14.3), unnormalize=False, s_mean=None, s_std=None,
-                                  position_threshold=1):
+                                  cost_threshold=1):
     SCALE = 0.25
     bsize, npred, nchannels, crop_h, crop_w = images.size()
     images = images.view(bsize * npred, nchannels, crop_h, crop_w)
@@ -190,8 +190,8 @@ def orientation_and_position_cost(images, states, pad, car_size=(6.4, 14.3), unn
     orientation_cost = torch.mean(torch.mean(s * (
                 torch.max(torch.stack([-cosdis + math.cos(5 / 180 * math.pi)/2, torch.zeros_like(cosdis)], dim=2),
                           dim=2)[0])**2, dim=-1), dim=-1)
-    position_cost = -torch.log(torch.mean(torch.mean(torch.min(torch.stack([v*100, torch.ones_like(v)*position_threshold],
-                                                                           dim=-1), dim=-1)[0]/position_threshold, dim=-1), dim=-1)
+    position_cost = -torch.log(torch.mean(torch.mean(torch.min(torch.stack([v*100, torch.ones_like(v)*cost_threshold],
+                                                                           dim=-1), dim=-1)[0]/cost_threshold, dim=-1), dim=-1)
                                *(1-math.exp(-1))+math.exp(-1))
 
     return orientation_cost.view(bsize, npred), position_cost.view(bsize, npred)
@@ -581,7 +581,7 @@ def parse_command_line(parser=None):
     parser.add_argument('-pad', type=int, default=1, help='p for neighborhood region')
     parser.add_argument('-track_grad_norm', type=bool, default=False, help='track grad norm for costs in validation steps')
     parser.add_argument('-output_h', type=bool, default=False, help='output the hidden variables for cost model')
-
+    parser.add_argument('-cost_threshold', type=int, default=1, help='threshold for position cost')
     opt = parser.parse_args()
     opt.n_inputs = 4
     opt.n_actions = 2
@@ -617,6 +617,9 @@ def build_model_file_name(opt):
     opt.model_file += f'-seed={opt.seed}'
     if opt.use_colored_lane:
         opt.model_file += f'-pad={opt.pad}'
+    if opt.use_colored_lane:
+        opt.model_file += f'-pt={opt.position_threshold}'
+        opt.model_file += f'-ct={opt.cost_threshold}'
     if opt.value_model == '':
         opt.model_file += '-novalue'
 
