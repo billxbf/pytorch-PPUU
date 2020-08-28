@@ -146,7 +146,7 @@ def compute_loss(targets, predictions, opt, reduction='mean', car_sizes=None):
     if opt.output_h:
         pred_hidden_variables = predictions[n]
         n += 1
-    if hasattr(opt,"cost_decoder") and opt.cost_decoder:
+    if hasattr(opt, "cost_decoder") and opt.cost_decoder:
         pred_costs = predictions[n]
     loss_h = None
     loss_c = None

@@ -191,7 +191,7 @@ def orientation_and_position_cost(images, states, pad, car_size=(6.4, 14.3), unn
                 torch.max(torch.stack([-cosdis + math.cos(5 / 180 * math.pi)/2, torch.zeros_like(cosdis)], dim=2),
                           dim=2)[0])**2, dim=-1), dim=-1)
     position_cost = -torch.log(torch.mean(torch.mean(torch.min(torch.stack([v*100, torch.ones_like(v)*position_threshold],
-                                                                           dim=-1), dim=-1)[0], dim=-1), dim=-1)
+                                                                           dim=-1), dim=-1)[0]/position_threshold, dim=-1), dim=-1)
                                *(1-math.exp(-1))+math.exp(-1))
 
     return orientation_cost.view(bsize, npred), position_cost.view(bsize, npred)

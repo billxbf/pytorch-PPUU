@@ -212,7 +212,8 @@ class DataLoader:
         if self.use_colored_lane:
             lane_images = torch.stack(lane_images)
             lane_images[:,:,2,:,:] = torch.min(torch.stack([lane_images[:,:,2,:,:]*100,
-                                                            torch.ones_like(lane_images[:,:,2,:,:])*position_threshold], dim=2), dim=2)[0]
+                                                            torch.ones_like(lane_images[:,:,2,:,:])*position_threshold],
+                                                           dim=2), dim=2)[0]/position_threshold
             images = torch.cat([lane_images,images[:,:,1,:,:].unsqueeze(dim=2)],dim=2) # Only use green channel
             del lane_images
 
