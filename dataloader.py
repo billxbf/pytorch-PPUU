@@ -221,9 +221,10 @@ class DataLoader:
             actions = self.normalise_action(actions)
             states = self.normalise_state_vector(states)
         images = self.normalise_state_image(images)
-        images[:, :, 2, :, :] = torch.min(torch.stack([images[:, :, 2, :, :] * self.draw_position_threshold,
-                                                            torch.ones_like(images[:, :, 2, :, :]) * position_threshold],
-                                                           dim=2), dim=2)[0] / position_threshold
+        if self.use_colored_lane:
+            images[:, :, 2, :, :] = torch.min(torch.stack([images[:, :, 2, :, :] * self.draw_position_threshold,
+                                                                torch.ones_like(images[:, :, 2, :, :]) * position_threshold],
+                                                               dim=2), dim=2)[0] / position_threshold
         ego_cars = self.normalise_state_image(ego_cars)
 
         costs = torch.stack(costs)
