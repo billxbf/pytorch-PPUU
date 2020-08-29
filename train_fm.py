@@ -257,12 +257,12 @@ def test(nbatches):
             total_loss_c += loss_c.item()
         del inputs, actions, targets
 
-        total_loss_i /= nbatches
-        total_loss_s /= nbatches
-        total_loss_p /= nbatches
-        total_loss_h /= nbatches
-        total_loss_c /= nbatches
-        return total_loss_i, total_loss_s, total_loss_p, total_loss_h, total_loss_c
+    total_loss_i /= nbatches
+    total_loss_s /= nbatches
+    total_loss_p /= nbatches
+    total_loss_h /= nbatches
+    total_loss_c /= nbatches
+    return total_loss_i, total_loss_s, total_loss_p, total_loss_h, total_loss_c
 
 writer = utils.create_tensorboard_writer(opt)
 
