@@ -104,6 +104,7 @@ class Car:
         self._states_image = list()
         self._ego_car_image = None
         self._lanes_image = list()
+        self._offroads_image = list()
         self._actions = list()
         self._safe_factor = random.gauss(1.5, 0)  # 0.9 Germany, 2 safe
         self.pid_k1 = np.random.normal(1e-4, 1e-5)
@@ -435,7 +436,11 @@ class Car:
         if state[2][1] and (state[2][1] - self)[0] < self.safe_distance: return False
         return True
 
-    def _transform_image(self, m, screen_surface, width_height, scale, centre, x_y, d, colored_lane=None):
+    def _get_observation_image(self, m, screen_surface, width_height, scale, global_frame, colored_lane=None):
+        d = self._direction
+
+        x_y = np.ceil(np.array((abs(d) @ width_height, abs(d) @ width_height[::-1])))
+        centre = self._position + (d * self._length) // 2
         try:
             sub_surface = screen_surface.subsurface((*(centre + m - x_y / 2), *x_y))
         except ValueError as ex:  # if the agent fucks up
@@ -452,34 +457,14 @@ class Car:
         sub_rot_surface = rot_surface.subsurface(x, y, *width_height)
         sub_rot_array = pygame.surfarray.array3d(sub_rot_surface).transpose(1, 0, 2)  # flip x and y
         # sub_rot_array_scaled = rescale(sub_rot_array, scale, mode='constant')  # output not consistent with below
-        new_h = int(scale * sub_rot_array.shape[0])
-        new_w = int(scale * sub_rot_array.shape[1])
-        sub_rot_array_scaled = np.array(
-            PIL.Image.fromarray(sub_rot_array).resize((new_w, new_h), resample=2))  # bilinear
+        new_h = int(scale*sub_rot_array.shape[0])
+        new_w = int(scale*sub_rot_array.shape[1])
+        sub_rot_array_scaled = np.array(PIL.Image.fromarray(sub_rot_array).resize((new_w, new_h), resample=2)) #bilinear
         sub_rot_array_scaled_up = np.rot90(sub_rot_array_scaled)  # facing upward, not flipped
         if colored_lane is None:
             sub_rot_array_scaled_up[:, :, 0] *= 4
         assert sub_rot_array_scaled_up.max() <= 255
-        return sub_rot_array_scaled_up, surf_w, surf_h, rot_surface, sub_rot_array
 
-    def _get_observation_image(self, m, screen_surface, width_height, scale, global_frame, colored_lane=None,
-                               offroad_surface=None):
-        d = self._direction
-
-        x_y = np.ceil(np.array((abs(d) @ width_height, abs(d) @ width_height[::-1])))
-        centre = self._position + (d * self._length) // 2
-        sub_rot_array_scaled_up, surf_w, surf_h, rot_surface, sub_rot_array = self._transform_image(m, screen_surface,
-                                                                                                    width_height, scale,
-                                                                                                    centre, x_y, d,
-                                                                                                    colored_lane=colored_lane)
-        if offroad_surface is not None:
-            sub_rot_array_scaled_up_offroad, _, _, _, _ = self._transform_image(m, offroad_surface, width_height, scale,
-                                                                                centre, x_y, d,
-                                                                                colored_lane=colored_lane)
-            # imsave('only_lane.png', sub_rot_array_scaled_up)
-            sub_rot_array_scaled_up[:, :, 2] = (0.5 * sub_rot_array_scaled_up[:, :, 2]\
-                                               + 0.5 * sub_rot_array_scaled_up_offroad[:, :, 2]).astype(np.uint8)
-            # imsave('offroad_lane.png', sub_rot_array_scaled_up_offroad)
         # Compute cost relative to position within the lane
         x = np.ceil((surf_w - self._length) / 2)
         y = np.ceil((surf_h - self.LANE_W) / 2)
@@ -491,17 +476,18 @@ class Car:
             lane_cost = (lanes * lane_mask).max() / 255
         else:
             neighbourhood = rot_surface.subsurface(x, y, 3, 3)
-            neighbourhood_array = pygame.surfarray.array3d(neighbourhood).transpose(1, 0, 2) / 255.  # flip x and y
+            neighbourhood_array = pygame.surfarray.array3d(neighbourhood).transpose(1, 0, 2) / 255. # flip x and y
             dmap = np.stack([2 * (neighbourhood_array[:, :, 0] - 0.5),
-                             2 * (neighbourhood_array[:, :, 1] - 0.5)], axis=2)
+                                2 * (neighbourhood_array[:, :, 1] - 0.5)], axis=2)
             v = neighbourhood_array[:, :, 2]
             s = np.linalg.norm(dmap, 2, 2)
             cosdis = (d[0] * dmap[:, :, 0] + d[1] * dmap[:, :, 1]) / (
-                    2 * np.linalg.norm(d, 2, 0) * np.linalg.norm(dmap, 2, 2) + 1e-6)
+                        2 * np.linalg.norm(d, 2, 0) * np.linalg.norm(dmap, 2, 2) + 1e-6)
             orientation_cost = np.mean(s * (
                 np.max(np.stack([-cosdis + math.cos(5 / 180 * math.pi) / 2, np.zeros_like(cosdis)], axis=2),
-                       axis=2)) ** 2)
-            position_cost = -np.log(np.mean(np.mean(v, axis=-1), axis=-1) * (1 - math.exp(-2)) + math.exp(-2))
+                          axis=2)) ** 2)
+            position_cost = -np.log(np.mean(np.mean(v, axis=-1), axis=-1)
+                               *(1-math.exp(-1))+math.exp(-1))
             lane_cost = [orientation_cost, position_cost]
 
         # Compute x/y minimum distance to other vehicles (pixel version)
@@ -564,6 +550,8 @@ class Car:
             self._ego_car_image = self._get_observation_image(*object_)[0]
         elif object_name == 'lane_image':
             self._lanes_image.append(self._get_observation_image(*object_))
+        elif object_name == 'offroad_image':
+            self._offroads_image.append(self._get_observation_image(*object_))
 
     def get_last(self, n, done, norm_state=False, return_reward=False, gamma=0.99, colored_lane=None, offroad_map=None):
         if len(self._states_image) < n: return None  # no enough samples
@@ -579,6 +567,13 @@ class Car:
             state_images = torch.cat([lane_images, state_images[:, 1, :, :].unsqueeze(dim=1)],
                                      dim=1)  # Only use green channel
             del lane_images
+        if offroad_map is not None:
+            transpose = list(zip(*self._offroads_image))
+            offroad_images = transpose[0]
+            offroad_images = torch.stack(offroad_images).permute(0, 3, 1, 2)[-n:]
+            state_images = torch.cat([state_images, offroad_images[:, 2, :, :].unsqueeze(dim=1)],
+                                     dim=1)  # Only use green channel
+            del offroad_images
         ego_car_new_shape = list(state_images.shape)
         ego_car_new_shape[1] = 1
         ego_car_channel = self._ego_car_image[:, :, 2][None, None, :].expand(ego_car_new_shape)
@@ -627,12 +622,15 @@ class Car:
 
         return observation, cost, self.off_screen or done, self
 
-    def dump_state_image(self, save_dir='scratch/', mode='img', colored_lane=None):
+    def dump_state_image(self, save_dir='scratch/', mode='img', colored_lane=None, offroad_map=None):
         os.system('mkdir -p ' + save_dir)
         transpose = list(zip(*self._states_image))
         if colored_lane is not None:
             lanes_transpose = list(zip(*self._lanes_image))
             lanes = lanes_transpose[0]
+        if offroad_map is not None:
+            offroads_transpose = list(zip(*self._offroads_image))
+            offroads = offroads_transpose[0]
         if len(transpose) == 0:
             print(f'failure, {save_dir}')
             # print(transpose)
@@ -649,8 +647,11 @@ class Car:
             # save in torch format
             im_pth = torch.stack(im).permute(0, 3, 1, 2)
             lane_pth = None
+            offroad_pth = None
             if colored_lane is not None:
                 lane_pth = torch.stack(lanes).permute(0, 3, 1, 2)
+            if offroad_map is not None:
+                offroad_pth = torch.stack(offroads).permute(0, 3, 1, 2)
             with open(os.path.join(save_dir, f'car{self.id}.pkl'), 'wb') as f:
                 pickle.dump({
                     'images': im_pth,
@@ -662,7 +663,8 @@ class Car:
                     'mask': mask,
                     'frames': frames,
                     'ego_car': self._ego_car_image.permute(2, 0, 1),
-                    'lane_images': lane_pth
+                    'lane_images': lane_pth,
+                    'offroad_images': offroad_pth
                 }, f)
         elif mode == 'img':
             save_dir = os.path.join(save_dir, str(self.id))
@@ -1073,7 +1075,10 @@ class Simulator(core.Env):
                         vehicle_surface.blit(lane_surface, (0, 0), special_flags=pygame.BLEND_MAX)
                     else:
                         v.store('lane_image', (max_extension, lane_surface, width_height, scale, self.frame,
-                                               self.colored_lane, offroad_surface))
+                                               self.colored_lane))
+                        if offroad_surface is not None:
+                            v.store('offroad_image', (max_extension, offroad_surface, width_height, scale, self.frame,
+                                                   self.colored_lane))
                     # Empty ego-surface
                     ego_surface.fill((0, 0, 0))
                     # Draw myself blue on the ego_surface

@@ -45,6 +45,7 @@ parser.add_argument('-tensorboard_dir', type=str, default='models',
                     help='path to the directory where to save tensorboard log. If passed empty path' \
                          ' no logs are saved.')
 parser.add_argument('-use_colored_lane', type=bool, default=False, help='use colored lanes for forward model')
+parser.add_argument('-use_offroad_map', type=bool, default=False, help='use offroad maps for forward model')
 parser.add_argument('-output_h', type=bool, default=False, help='output the hidden variables for cost model')
 parser.add_argument('-ksize', type=int, default=7, help='kernel size for blurring')
 parser.add_argument('-position_threshold', type=int, default=1, help='threshold for position cost')
@@ -59,8 +60,7 @@ numpy.random.seed(opt.seed)
 torch.manual_seed(opt.seed)
 torch.cuda.manual_seed(opt.seed)
 # define colored_lane symbol for dataloader
-use_colored_lane = opt.use_colored_lane
-dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=use_colored_lane)
+dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=opt.use_colored_lane, use_offroad_map=opt.use_offroad_map)
 
 
 # define model file name

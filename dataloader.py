@@ -3,8 +3,10 @@ import numpy, random, pdb, math, pickle, glob, time, os, re
 import torch
 from matplotlib.colors import rgb_to_hsv
 
+
 class DataLoader:
-    def __init__(self, fname, opt, dataset='simulator', single_shard=False, use_colored_lane=False):
+    def __init__(self, fname, opt, dataset='simulator', single_shard=False, use_colored_lane=False,
+                 use_offroad_map=False):
         if opt.debug:
             single_shard = True
         self.opt = opt
@@ -29,9 +31,11 @@ class DataLoader:
         self.ids = []
         self.ego_car_images = []
         self.use_colored_lane = use_colored_lane
+        self.use_offroad_map = use_offroad_map
         if use_colored_lane:
             self.lane_images = []
-
+            if use_offroad_map:
+                self.offroad_images = []
         for df in data_files:
             combined_data_path = f'{data_dir}/{df}/all_data.pth'
             if os.path.isfile(combined_data_path):
@@ -45,6 +49,8 @@ class DataLoader:
                 self.ego_car_images += data.get('ego_car')
                 if use_colored_lane:
                     self.lane_images += data.get('lane_images')
+                    if use_offroad_map:
+                        self.offroad_images += data.get('offroad_images')
             else:
                 print(data_dir)
                 images = []
@@ -57,6 +63,8 @@ class DataLoader:
                 lane_images = None
                 if use_colored_lane:
                     lane_images = []
+                    if use_offroad_map:
+                        offroad_images = []
                 for f in ids:
                     print(f'[loading {f}]')
                     fd = pickle.load(open(f, 'rb'))
@@ -78,11 +86,13 @@ class DataLoader:
                             fd.get('pixel_proximity_cost')[:Ta].view(-1, 1),
                             fd.get('lane_cost')[:Ta].view(-1, 1),
                             fd.get('lane_cost')[:Ta].view(-1, 1),
-                        ), 1),)
+                        ), 1), )
                     states.append(fd['states'])
                     ego_car_images.append(fd['ego_car'])
                     if use_colored_lane:
                         lane_images.append(fd['lane_images'])
+                        if use_offroad_map:
+                            offroad_images.append(fd['offroad_images'])
 
                 print(f'Saving {combined_data_path} to disk')
                 torch.save({
@@ -92,7 +102,8 @@ class DataLoader:
                     'states': states,
                     'ids': ids,
                     'ego_car': ego_car_images,
-                    'lane_images': lane_images
+                    'lane_images': lane_images,
+                    'offroad_images': offroad_images,
                 }, combined_data_path)
                 self.images += images
                 self.actions += actions
@@ -102,6 +113,8 @@ class DataLoader:
                 self.ego_car_images += ego_car_images
                 if use_colored_lane:
                     self.lane_images += lane_images
+                    if use_offroad_map:
+                        self.offroad_images += offroad_images
 
         self.n_episodes = len(self.images)
         print(f'Number of episodes: {self.n_episodes}')
@@ -118,9 +131,9 @@ class DataLoader:
             perm = rgn.permutation(self.n_episodes)
             n_train = int(math.floor(self.n_episodes * 0.8))
             n_valid = int(math.floor(self.n_episodes * 0.1))
-            self.train_indx = perm[0 : n_train]
-            self.valid_indx = perm[n_train : n_train + n_valid]
-            self.test_indx = perm[n_train + n_valid :]
+            self.train_indx = perm[0: n_train]
+            self.valid_indx = perm[n_train: n_train + n_valid]
+            self.test_indx = perm[n_train + n_valid:]
             torch.save(dict(
                 train_indx=self.train_indx,
                 valid_indx=self.valid_indx,
@@ -180,6 +193,8 @@ class DataLoader:
         images, states, actions, costs, ids, sizes, ego_cars = [], [], [], [], [], [], []
         if self.use_colored_lane:
             lane_images = []
+            if self.use_offroad_map:
+                offroad_images = []
         nb = 0
         T = self.opt.ncond + npred
         while nb < self.opt.batch_size:
@@ -188,14 +203,16 @@ class DataLoader:
             episode_length = min(self.images[s].size(0), self.states[s].size(0))
             if episode_length >= T:
                 t = self.random.randint(0, episode_length - T)
-                images.append(self.images[s][t : t + T].to(device))
-                actions.append(self.actions[s][t : t + T].to(device))
-                states.append(self.states[s][t : t + T, 0].to(device))  # discard 6 neighbouring cars
-                costs.append(self.costs[s][t : t + T].to(device))
+                images.append(self.images[s][t: t + T].to(device))
+                actions.append(self.actions[s][t: t + T].to(device))
+                states.append(self.states[s][t: t + T, 0].to(device))  # discard 6 neighbouring cars
+                costs.append(self.costs[s][t: t + T].to(device))
                 ids.append(self.ids[s])
                 ego_cars.append(self.ego_car_images[s].to(device))
                 if self.use_colored_lane:
-                    lane_images.append(self.lane_images[s][t : t + T].to(device))
+                    lane_images.append(self.lane_images[s][t: t + T].to(device))
+                    if self.use_offroad_map:
+                        offroad_images.append(self.offroad_images[s][t: t + T].to(device))
                 splits = self.ids[s].split('/')
                 time_slot = splits[-2]
                 car_id = int(re.findall(r'car(\d+).pkl', splits[-1])[0])
@@ -204,16 +221,20 @@ class DataLoader:
                 nb += 1
 
         # Pile up stuff
-        images  = torch.stack(images)
-        states  = torch.stack(states)
+        images = torch.stack(images)
+        states = torch.stack(states)
         actions = torch.stack(actions)
-        sizes   = torch.tensor(sizes)
+        sizes = torch.tensor(sizes)
         ego_cars = torch.stack(ego_cars)
         if self.use_colored_lane:
             lane_images = torch.stack(lane_images)
-            images = torch.cat([lane_images,images[:,:,1,:,:].unsqueeze(dim=2)],dim=2) # Only use green channel
+            images = torch.cat([lane_images, images[:, :, 1, :, :].unsqueeze(dim=2)], dim=2)  # Only use green channel
             del lane_images
-
+            if self.use_offroad_map:
+                offroad_images = torch.stack(offroad_images)
+                images = torch.cat([images, offroad_images[:, :, 2, :, :].unsqueeze(dim=2)],
+                                   dim=2)  # Only use blue channel
+                del offroad_images
 
         # Normalise actions, state_vectors, state_images
         if not self.opt.debug:
@@ -229,13 +250,14 @@ class DataLoader:
         # 0               t0                             t1
         t0 = self.opt.ncond
         t1 = T
-        input_images  = images [:,   :t0].float().contiguous()
-        input_states  = states [:,   :t0].float().contiguous()
-        target_images = images [:, t0:t1].float().contiguous()
-        target_states = states [:, t0:t1].float().contiguous()
-        target_costs  = costs  [:, t0:t1].float().contiguous()
-        t0 -= 1; t1 -= 1
-        actions       = actions[:, t0:t1].float().contiguous()
+        input_images = images[:, :t0].float().contiguous()
+        input_states = states[:, :t0].float().contiguous()
+        target_images = images[:, t0:t1].float().contiguous()
+        target_states = states[:, t0:t1].float().contiguous()
+        target_costs = costs[:, t0:t1].float().contiguous()
+        t0 -= 1
+        t1 -= 1
+        actions = actions[:, t0:t1].float().contiguous()
         # input_actions = actions[:, :t0].float().contiguous()
         ego_cars = ego_cars.float().contiguous()
         #          n_cond                      n_pred
@@ -291,6 +313,8 @@ if __name__ == '__main__':
         batch_size = 4
         npred = 20
         ncond = 10
+
+
     # Instantiate data set object
     d = DataLoader(None, opt=DataSettings, dataset='i80')
     # Retrieve first training batch

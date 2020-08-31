@@ -21,6 +21,8 @@ class encoder(nn.Module):
         # colored lane needs an additional channel
         if opt.use_colored_lane:
             self.n_channels = self.n_channels + 1
+            if hasattr(self.opt,"use_offroad_map") and self.opt.use_offroad_map:
+                self.n_channels = self.n_channels + 1
         # frame encoder
         if opt.layers == 3:
             assert(opt.nfeature % 4 == 0)
@@ -132,6 +134,8 @@ class decoder(nn.Module):
         # colored lane needs an additional channel
         if opt.use_colored_lane:
             self.n_channels = 4
+            if hasattr(self.opt,"use_offroad_map") and self.opt.use_offroad_map:
+                self.n_channels = 5
         if self.opt.layers == 3:
             assert(opt.nfeature % 4 == 0)
             self.feature_maps = [int(opt.nfeature/4), int(opt.nfeature/2), opt.nfeature]
@@ -665,6 +669,8 @@ class FwdCNN_VAE(nn.Module):
         z_list = []
         if self.opt.use_colored_lane:
             n_channels = 4
+            if hasattr(self.opt,"use_offroad_map") and self.opt.use_offroad_map:
+                n_channels = 5
         else:
             n_channels = 3
         if hasattr(self.opt, 'output_h') and self.opt.output_h:
