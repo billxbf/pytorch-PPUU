@@ -52,7 +52,7 @@ opt = parser.parse_args()
 
 os.system('mkdir -p ' + opt.model_dir)
 
-opt.dataset = f"traffic-data/state-action-cost-{opt.ksize}/data_i80_v0/"
+opt.dataset = f"traffic-data/state-action-cost-{opt.ksize}-{opt.position_threshold}/data_i80_v0/"
 
 random.seed(opt.seed)
 numpy.random.seed(opt.seed)
@@ -169,7 +169,7 @@ def compute_loss(targets, predictions, opt, reduction='mean', car_sizes=None):
             orientation_cost, position_cost = utils.orientation_and_position_cost(
                     pred_images[:, :, :n_channels].contiguous(), pred_states.data, car_size=car_sizes,
                     unnormalize=True, s_mean=model.stats['s_mean'],
-                    s_std=model.stats['s_std'], pad=1, cost_threshold=opt.cost_threshold)
+                    s_std=model.stats['s_std'], pad=1)
             loss_c = F.mse_loss(pred_costs.view(opt.batch_size, opt.npred, 3),
                                   torch.stack([proximity_cost, orientation_cost, position_cost], dim=-1).detach())
         else:
@@ -199,7 +199,7 @@ def train(nbatches, npred):
     total_loss_i, total_loss_s, total_loss_p, total_loss_h, total_loss_c = 0, 0, 0, 0, 0
     for i in range(nbatches):
         optimizer.zero_grad()
-        inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('train', npred, position_threshold=opt.position_threshold)
+        inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('train', npred)
         pred, loss_target = model(inputs[: -1], actions, targets, z_dropout=opt.z_dropout)
         loss_p = loss_target[0]
         loss_i, loss_s, loss_h, loss_c = compute_loss(targets, pred, opt, car_sizes=car_sizes)
@@ -238,7 +238,7 @@ def test(nbatches):
     model.eval()
     total_loss_i, total_loss_s, total_loss_p, total_loss_h, total_loss_c = 0, 0, 0, 0, 0
     for i in range(nbatches):
-        inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('valid', position_threshold=opt.position_threshold)
+        inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('valid')
         pred, loss_target = model(inputs[: -1], actions, targets, z_dropout=opt.z_dropout)
         loss_p = loss_target[0]
         loss_i, loss_s, loss_h, loss_c = compute_loss(targets, pred, opt, car_sizes=car_sizes)

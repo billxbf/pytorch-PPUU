@@ -23,6 +23,7 @@ parser.add_argument('-map', type=str, default='i80', choices={'ai', 'i80', 'us10
 parser.add_argument('-delta_t', type=float, default=0.1)
 parser.add_argument('-colored_lane', type=str, default=None)
 parser.add_argument('-speed_map', type=str, default=None)
+parser.add_argument('-offroad_map', type=str, default=None)
 opt = parser.parse_args()
 
 opt.state_image = (opt.state_image == 1)
@@ -44,7 +45,8 @@ kwargs = dict(
     data_dir=opt.data_dir,
     delta_t=opt.delta_t,
     colored_lane=opt.colored_lane,
-    speed_map=opt.speed_map
+    speed_map=opt.speed_map,
+    offroad_map=opt.offroad_map
 )
 
 register(

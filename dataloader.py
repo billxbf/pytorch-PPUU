@@ -4,7 +4,7 @@ import torch
 from matplotlib.colors import rgb_to_hsv
 
 class DataLoader:
-    def __init__(self, fname, opt, dataset='simulator', single_shard=False, use_colored_lane=False, draw_position_threshold=100):
+    def __init__(self, fname, opt, dataset='simulator', single_shard=False, use_colored_lane=False):
         if opt.debug:
             single_shard = True
         self.opt = opt
@@ -159,11 +159,10 @@ class DataLoader:
         print(f'[loading car sizes: {car_sizes_path}]')
         self.car_sizes = torch.load(car_sizes_path)
 
-        self.draw_position_threshold = draw_position_threshold
     # get batch to use for forward modeling
     # a sequence of ncond given states, a sequence of npred actions,
     # and a sequence of npred states to be predicted
-    def get_batch_fm(self, split, npred=-1, cuda=True, position_threshold=1):
+    def get_batch_fm(self, split, npred=-1, cuda=True):
 
         # Choose the correct device
         device = torch.device('cuda') if cuda else torch.device('cpu')
@@ -221,10 +220,6 @@ class DataLoader:
             actions = self.normalise_action(actions)
             states = self.normalise_state_vector(states)
         images = self.normalise_state_image(images)
-        if self.use_colored_lane:
-            images[:, :, 2, :, :] = torch.min(torch.stack([images[:, :, 2, :, :] * self.draw_position_threshold,
-                                                                torch.ones_like(images[:, :, 2, :, :]) * position_threshold],
-                                                               dim=2), dim=2)[0] / position_threshold
         ego_cars = self.normalise_state_image(ego_cars)
 
         costs = torch.stack(costs)

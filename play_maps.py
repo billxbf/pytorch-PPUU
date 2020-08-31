@@ -13,7 +13,7 @@ parser.add_argument('-fps', type=int, default=1e3)
 parser.add_argument('-delta_t', type=float, default=0.1)
 parser.add_argument('-draw_colored_lane', type=bool, default=False)
 parser.add_argument('-draw_speed_map', type=bool, default=False)
-parser.add_argument('-draw_position_threshold', type=int, default=100)
+parser.add_argument('-draw_position_threshold', type=int, default=1)
 opt = parser.parse_args()
 
 kwargs = {

@@ -9,7 +9,7 @@ import utils
 
 # estimate prediction uncertainty using dropout
 def compute_uncertainty_batch(model, input_images, input_states, actions, targets=None, car_sizes=None, npred=200,
-                              n_models=10, Z=None, dirname=None, detach=True, compute_total_loss=False, pad=1, cost_threshold=1):
+                              n_models=10, Z=None, dirname=None, detach=True, compute_total_loss=False, pad=1):
     """
     Compute variance over n_models prediction per input + action
 
@@ -99,7 +99,7 @@ def compute_uncertainty_batch(model, input_images, input_states, actions, target
             orientation_cost, position_cost = utils.orientation_and_position_cost(
                 pred_images, pred_states.data,
                 car_size=car_sizes_temp,
-                unnormalize=True, s_mean=model.stats['s_mean'], s_std=model.stats['s_std'], pad=pad, cost_threshold=cost_threshold)
+                unnormalize=True, s_mean=model.stats['s_mean'], s_std=model.stats['s_std'], pad=pad)
             pred_costs += model.opt.lambda_o * orientation_cost + model.opt.lambda_l * position_cost
         else:
             lane_cost, prox_map_l = utils.lane_cost(pred_images, car_sizes_temp)
@@ -145,13 +145,13 @@ def compute_uncertainty_batch(model, input_images, input_states, actions, target
 # compute uncertainty estimates for the ground truth actions in the training set.
 # this will give us an idea of what normal ranges are using actions the forward model
 # was trained on
-def estimate_uncertainty_stats(model, dataloader, n_batches=100, npred=200, pad=1, position_threshold=1, cost_threshold=1):
+def estimate_uncertainty_stats(model, dataloader, n_batches=100, npred=200, pad=1):
     u_images, u_states, u_costs, u_values, speeds = [], [], [], [], []
     data_bsize = dataloader.opt.batch_size
     dataloader.opt.batch_size = 8
     for i in range(n_batches):
         print(f'[estimating normal uncertainty ranges: {i / n_batches:2.1%}]', end='\r')
-        inputs, actions, targets, ids, car_sizes = dataloader.get_batch_fm('train', npred, position_threshold=position_threshold)
+        inputs, actions, targets, ids, car_sizes = dataloader.get_batch_fm('train', npred)
         pred_images_var, pred_states_var, pred_costs_var, pred_v_var, _, _, _ = compute_uncertainty_batch(
             model=model,
             input_images=inputs[0],
@@ -162,7 +162,6 @@ def estimate_uncertainty_stats(model, dataloader, n_batches=100, npred=200, pad=
             detach=True,
             car_sizes=car_sizes,
             pad=pad,
-            cost_threshold=cost_threshold
         )
         u_images.append(pred_images_var)
         u_states.append(pred_states_var)
@@ -301,7 +300,7 @@ def plan_actions_backprop(model, input_images, input_states, car_sizes, npred=50
 
 
 def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampling_method='fp', lrt_z=0.1,
-                          n_updates_z=10, infer_z=False, pad=1, cost_threshold=1):
+                          n_updates_z=10, infer_z=False, pad=1):
     input_images_orig, input_states_orig, input_ego_car_orig = inputs
     target_images, target_states, target_costs = targets
     ego_car_new_shape = [*input_images_orig.shape]
@@ -374,7 +373,7 @@ def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampli
             if k < n_updates_z + 1:
                 _, _, _, _, _, _, total_u_loss = compute_uncertainty_batch(
                     model, input_images, input_states, pred_actions, targets, car_sizes, npred=npred, n_models=n_models,
-                    detach=False, Z=Z_adv.permute(1, 0, 2), compute_total_loss=True, pad=pad, cost_threshold=cost_threshold
+                    detach=False, Z=Z_adv.permute(1, 0, 2), compute_total_loss=True, pad=pad
                 )
 
                 loss_z = -pred_cost_adv.mean()  # + total_u_loss.mean()
@@ -397,7 +396,7 @@ def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampli
             orientation_cost, position_cost = utils.orientation_and_position_cost(
                                                 pred_images[:, :, :n_channels].contiguous(), pred_states.data, car_size=car_sizes,
                                                 unnormalize=True, s_mean=model.stats['s_mean'],
-                                                s_std=model.stats['s_std'], pad=pad, cost_threshold=cost_threshold)
+                                                s_std=model.stats['s_std'], pad=pad)
         else:
             lane_cost, prox_map_l = utils.lane_cost(pred_images[:, :, :3].contiguous(), car_sizes)
             offroad_cost = utils.offroad_cost(pred_images[:, :, :3].contiguous(), prox_map_l)
@@ -436,7 +435,7 @@ def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampli
 
     _, _, _, _, _, _, total_u_loss = compute_uncertainty_batch(
         model, input_images, input_states, pred_actions, targets, car_sizes, npred=npred, n_models=n_models,
-        detach=False, Z=Z.permute(1, 0, 2), compute_total_loss=True, cost_threshold=cost_threshold
+        detach=False, Z=Z.permute(1, 0, 2), compute_total_loss=True
     )
 
     loss_a = pred_actions.norm(2, 2).pow(2).mean()

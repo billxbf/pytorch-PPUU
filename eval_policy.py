@@ -228,7 +228,6 @@ def parse_args():
                         help='save gradients wrt states')
     parser.add_argument('-colored_lane', type=str, default=None)
     parser.add_argument('-pad', type=int, default=1)
-    parser.add_argument('-fm_position_threshold', type=int, default=1)
 
     opt = parser.parse_args()
     opt.save_dir = path.join(opt.model_dir, 'planning_results')
@@ -486,7 +485,7 @@ def main():
         if hasattr(forward_model, 'value_function'):
             forward_model.value_function.train()
         planning.estimate_uncertainty_stats(
-            forward_model, dataloader, n_batches=50, npred=opt.npred, pad=opt.pad, position_threshold=opt.fm_position_threshold)
+            forward_model, dataloader, n_batches=50, npred=opt.npred, pad=opt.pad)
 
     gym.envs.registration.register(
         id='I-80-v1',
@@ -499,7 +498,6 @@ def main():
             store_simulator_video=opt.save_sim_video,
             show_frame_count=False,
             colored_lane=opt.colored_lane,
-            fm_position_threshold=opt.fm_position_threshold
         )
     )
 

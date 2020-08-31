@@ -479,16 +479,14 @@ class I80(Simulator):
                 norm_state=self.normalise_state and self.data_stats,
                 return_reward=self.return_reward,
                 gamma=self.gamma,
-                colored_lane=self.colored_lane,
-                fm_position_threshold=self.fm_position_threshold,
-                draw_position_threshold=self.draw_position_threshold
+                colored_lane=self.colored_lane
             )
             if return_: return return_
 
         # return observation, reward, done, info
         return None, None, self.done, None
 
-    def _draw_lanes(self, surface, mode='human', offset=0, colored_lane=None):
+    def _draw_lanes(self, surface, mode='human', offset=0, colored_lane=None, offroad_map=None, offroad_surface=None):
 
         slope = 0.035
 
@@ -524,6 +522,9 @@ class I80(Simulator):
                 s = surface  # screen
                 lane = pygame.image.load(colored_lane)
                 s.blit(lane,(0,0))
+                if offroad_map:
+                    offroad = pygame.image.load(offroad_map)
+                    offroad_surface.blit(offroad,(0,0))
 
             # pygame.image.save(s, "i80-real.png")
 
@@ -572,4 +573,9 @@ class I80(Simulator):
                 lane = pygame.image.load(colored_lane)
                 s.blit(lane,(m + 0, m + lanes[0]['min'] - 35))
                 self._lane_surfaces[mode] = surface.copy()
-            # pygame.image.save(surface, "i80-machine.png")
+                if offroad_map:
+                    offroad = pygame.image.load(offroad_map)
+                    offroad_surface.blit(offroad,(m + 0, m + lanes[0]['min'] - 35))
+                    self._offroad_surfaces[mode] = offroad_surface.copy()
+            # pygame.image.save(surface, "i80-machine-lane.png")
+            # pygame.image.save(offroad_surface, "i80-machine-offroad.png")
