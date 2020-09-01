@@ -6,10 +6,11 @@ import torch
 
 parser = argparse.ArgumentParser()
 parser.add_argument('-map', type=str, default='i80', choices={'ai', 'i80', 'us101', 'lanker', 'peach'})
+parser.add_argument('-path', type=str, default='state-action-cost/')
 opt = parser.parse_args()
 
 path = './traffic-data/xy-trajectories/{}/'.format(opt.map)
-trajectories_path = './traffic-data/state-action-cost/data_{}_v0'.format(opt.map)
+trajectories_path = './traffic-data/'+opt.path+'data_{}_v0'.format(opt.map)
 time_slots = [d[0].split("/")[-1] for d in os.walk(trajectories_path) if d[0] != trajectories_path]
 
 df = dict()
@@ -47,4 +48,4 @@ for ts in time_slots:
             car_sizes[ts][c] = size
             print(c)
 
-torch.save(car_sizes, 'traffic-data/state-action-cost/data_{}_v0/car_sizes.pth'.format(opt.map))
+torch.save(car_sizes, 'traffic-data/'+opt.path+'data_{}_v0/car_sizes.pth'.format(opt.map))
