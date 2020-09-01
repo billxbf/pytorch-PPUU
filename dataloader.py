@@ -61,6 +61,7 @@ class DataLoader:
                 ids.sort()
                 ego_car_images = []
                 lane_images = None
+                offroad_images = None
                 if use_colored_lane:
                     lane_images = []
                     if use_offroad_map:
