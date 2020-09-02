@@ -256,8 +256,8 @@ class DataLoader:
         target_images = images[:, t0:t1].float().contiguous()
         target_states = states[:, t0:t1].float().contiguous()
         target_costs = costs[:, t0:t1].float().contiguous()
-        t0 -= 1
-        t1 -= 1
+        # t0 -= 1
+        # t1 -= 1
         actions = actions[:, t0:t1].float().contiguous()
         # input_actions = actions[:, :t0].float().contiguous()
         ego_cars = ego_cars.float().contiguous()
