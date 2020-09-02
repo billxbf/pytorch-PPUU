@@ -90,8 +90,8 @@ for k, v in stats.items():
 if opt.learned_cost!= '':
     print('[loading cost regressor]')
     cost_name=''
-    value = ['1.0','0.5','0.1']
-    tf = ['False','True']
+    value = ['1.0', '0.5', '0.1', '0.0']
+    tf = ['0', '1']
     cost_name+='-random='+tf[int(opt.learned_cost[0])]
     cost_name+='-std_v='+value[int(opt.learned_cost[1])]+'-std_r='+value[int(opt.learned_cost[2])]
     cost_name+='-c_dropout='+tf[int(opt.learned_cost[3])]
