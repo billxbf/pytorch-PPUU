@@ -124,7 +124,7 @@ else:
     optimizer = optim.Adam(model.parameters(), opt.lrt)
     n_iter = 0
 
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=200000/opt.epoch_size, gamma=0.1)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50000/opt.epoch_size, gamma=0.5)
 
 stats = torch.load(opt.dataset+'data_stats.pth')
 model.stats = stats  # used by planning.py/compute_uncertainty_batch
