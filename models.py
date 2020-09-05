@@ -19,9 +19,9 @@ class encoder(nn.Module):
         self.n_inputs = opt.ncond if n_inputs is None else n_inputs
         self.n_channels = n_channels
         # colored lane needs an additional channel
-        if opt.use_colored_lane:
+        if self.opt.use_colored_lane:
             self.n_channels = self.n_channels + 1
-            if hasattr(self.opt,"use_offroad_map") and self.opt.use_offroad_map:
+            if hasattr(self.opt, "use_offroad_map") and self.opt.use_offroad_map:
                 self.n_channels = self.n_channels + 1
         # frame encoder
         if opt.layers == 3:
@@ -132,9 +132,9 @@ class decoder(nn.Module):
         self.n_out = n_out
         self.n_channels = 3
         # colored lane needs an additional channel
-        if opt.use_colored_lane:
+        if self.opt.use_colored_lane:
             self.n_channels = 4
-            if hasattr(self.opt,"use_offroad_map") and self.opt.use_offroad_map:
+            if hasattr(self.opt, "use_offroad_map") and self.opt.use_offroad_map:
                 self.n_channels = 5
         if self.opt.layers == 3:
             assert(opt.nfeature % 4 == 0)
