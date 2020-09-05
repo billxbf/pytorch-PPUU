@@ -70,10 +70,13 @@ if os.path.isfile(opt.model_file + '.model'):
 else:
     model.create_policy_net(opt)
     optimizer = optim.Adam(model.policy_net.parameters(), opt.lrt)  # POLICY optimiser ONLY!
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50_000/opt.epoch_size, gamma=0.1)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=25_000/opt.epoch_size, gamma=0.25)
+
+#data
+opt.dataset = f"traffic-data/state-action-cost-{opt.ksize}-{opt.position_threshold}/data_i80_v0/"
 
 # Load normalisation stats
-stats = torch.load('traffic-data/state-action-cost/data_i80_v0/data_stats.pth')
+stats = torch.load(opt.dataset+'data_stats.pth')
 model.stats = stats  # used by planning.py/compute_uncertainty_batch
 if 'ten' in opt.mfile:
     p_z_file = opt.model_dir + opt.mfile + '.pz'
@@ -99,14 +102,14 @@ if opt.learned_cost!= '':
     model.cost = torch.load(path.join(opt.model_dir,'cost_models', opt.mfile + '.cost'+cost_name+'.model'))['model']
 
 
-dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=model.opt.use_colored_lane)
+dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=model.opt.use_colored_lane, use_offroad_map=model.opt.use_colored_lane)
 model.train()
 model.opt.u_hinge = opt.u_hinge
-planning.estimate_uncertainty_stats(model, dataloader, n_batches=50, npred=opt.npred, pad=opt.pad)
+planning.estimate_uncertainty_stats(model, dataloader, n_batches=50, npred=opt.npred, pad=opt.pad, offroad_range=opt.offroad_range)
 model.eval()
 
 
-def start(what, nbatches, npred, track=False, pad=1):
+def start(what, nbatches, npred, track=False, pad=1, offroad_range=1.0):
     train = True if what is 'train' else False
     model.train()
     model.policy_net.train()
@@ -146,7 +149,7 @@ def start(what, nbatches, npred, track=False, pad=1):
         inputs, actions, targets, ids, car_sizes = dataloader.get_batch_fm(what, npred)
         pred, actions = planning.train_policy_net_mpur(
             model, inputs, targets, car_sizes, n_models=10, lrt_z=opt.lrt_z,
-            n_updates_z=opt.z_updates, infer_z=opt.infer_z, pad=pad)
+            n_updates_z=opt.z_updates, infer_z=opt.infer_z, pad=pad, offroad_range=offroad_range)
         if opt.use_colored_lane:
             pred['policy'] = pred['proximity'] + \
                              opt.u_reg * pred['uncertainty'] + \
@@ -255,13 +258,13 @@ else:
 writer = utils.create_tensorboard_writer(opt)
 
 for i in range(500):
-    train_losses = start('train', opt.epoch_size, opt.npred, pad=opt.pad,)
+    train_losses = start('train', opt.epoch_size, opt.npred, pad=opt.pad, offroad_range=opt.offroad_range)
     a_grad = []
     if opt.track_grad_norm:
-        valid_losses = start('valid', opt.epoch_size // 2, opt.npred, track=True, pad=opt.pad,)
+        valid_losses = start('valid', opt.epoch_size // 2, opt.npred, track=True, pad=opt.pad, offroad_range=opt.offroad_range)
     else:
         with torch.no_grad():  # Torch, please please please, do not track computations :)
-            valid_losses = start('valid', opt.epoch_size // 2, opt.npred, pad=opt.pad)
+            valid_losses = start('valid', opt.epoch_size // 2, opt.npred, pad=opt.pad, offroad_range=opt.offroad_range)
     scheduler.step()
     if writer is not None:
         for key in train_losses:

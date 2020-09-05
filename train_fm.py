@@ -77,8 +77,9 @@ if opt.grad_clip != -1:
 opt.model_file += f'-warmstart={opt.warmstart}'
 opt.model_file += f'-seed={opt.seed}'
 opt.model_file += f'-output_h={opt.output_h}'
-opt.model_file += f'-ksize={opt.ksize}'
-opt.model_file += f'-pt={opt.position_threshold}'
+if opt.use_colored_lane:
+    opt.model_file += f'-ksize={opt.ksize}'
+    opt.model_file += f'-pt={opt.position_threshold}'
 print(f'[will save model as: {opt.model_file}]')
 
 
@@ -169,7 +170,7 @@ def compute_loss(targets, predictions, opt, reduction='mean', car_sizes=None):
             orientation_cost, position_cost = utils.orientation_and_position_cost(
                     pred_images[:, :, :n_channels].contiguous(), pred_states.data, car_size=car_sizes,
                     unnormalize=True, s_mean=model.stats['s_mean'],
-                    s_std=model.stats['s_std'], pad=1)
+                    s_std=model.stats['s_std'], pad=1, offroad_range=1.0)
             loss_c = F.mse_loss(pred_costs.view(opt.batch_size, opt.npred, 3),
                                   torch.stack([proximity_cost, orientation_cost, position_cost], dim=-1).detach())
         else:
