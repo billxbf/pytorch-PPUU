@@ -183,7 +183,7 @@ def orientation_and_position_cost(images, states, pad, offroad_range, car_size=(
     dmap = torch.stack([2 * (neighbourhood_array[:, :, 0] - 0.5),
                              2 * (neighbourhood_array[:, :, 1] - 0.5)], dim=2).cuda()
     v = neighbourhood_array[:, :, 2]
-    offroad = neighbourhood_array[:, :, 3]
+    offroad = neighbourhood_array[:, :, 4]
     s = dmap.norm(2, 2)
     speed = speed.view(bsize, npred, 2).unsqueeze(dim=-1).unsqueeze(dim=-1)
     cosdis = (speed[:, :, 0] * dmap[:, :, 0] + speed[:, :, 1] * dmap[:, :, 1]) / (2 * speed.norm(2, 2) * dmap.norm(2, 2) + 1e-6)
