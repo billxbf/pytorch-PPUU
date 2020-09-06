@@ -584,7 +584,6 @@ def parse_command_line(parser=None):
     parser.add_argument('-ksize', type=int, default=7, help='kernel size for blurring')
     parser.add_argument('-position_threshold', type=int, default=1, help='threshold for position cost')
     parser.add_argument('-offroad_range', type=float, default=1.0, help='The range of offroad cost')
-    parser.add_argument()
     opt = parser.parse_args()
     opt.n_inputs = 4
     opt.n_actions = 2
