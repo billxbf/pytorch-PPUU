@@ -318,6 +318,8 @@ def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampli
 
     if model.opt.use_colored_lane:
         n_channels = 4
+        if model.opt.use_offroad_map:
+            n_channels = 5
     else:
         n_channels = 3
 
