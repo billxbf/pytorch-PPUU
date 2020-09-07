@@ -228,7 +228,9 @@ def parse_args():
                         help='save gradients wrt states')
     parser.add_argument('-colored_lane', type=str, default=None)
     parser.add_argument('-pad', type=int, default=1)
-
+    parser.add_argument('-ksize', type=int, default=7)
+    parser.add_argument('-position_threshold', type=int, default=1)
+    parser.add_argument('-offroad_map', type=str, default=None)
     opt = parser.parse_args()
     opt.save_dir = path.join(opt.model_dir, 'planning_results')
     opt.height = 117
@@ -405,9 +407,15 @@ def process_one_episode(opt,
     if len(images) > 3:
         if opt.colored_lane is not None:
             vehicle_mask = images[:, 3] > 0
-            ego_mask = images[:, 4] > 0
+            if opt.offroad_map is not None:
+                ego_mask = images[:, 5] > 0
+            else:
+                ego_mask = images[:, 4] > 0
             vehicle_value = images[:, 3]
-            ego_value = images[:, 4]
+            if opt.offroad_map is not None:
+                ego_value = images[:, 5]
+            else:
+                ego_value = images[:, 4]
             image_red = images[:, 0]
             image_green = images[:, 1]
             image_blue = images[:, 2]
@@ -467,9 +475,12 @@ def main():
     numpy.random.seed(opt.seed)
     torch.manual_seed(opt.seed)
 
+    # data
+    opt.dataset = f"traffic-data/state-action-cost-{opt.ksize}-{opt.position_threshold}/data_i80_v0/"
     data_path = opt.dataset
 
-    dataloader = DataLoader(None, opt, 'opt.dataset', use_colored_lane=True if opt.colored_lane is not None else False)
+    dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=True if opt.colored_lane is not None else False,
+                            use_offroad_map=True if opt.offroad_map is not None else False)
     (
         forward_model,
         value_function,
@@ -498,6 +509,7 @@ def main():
             store_simulator_video=opt.save_sim_video,
             show_frame_count=False,
             colored_lane=opt.colored_lane,
+            offroad_map=opt.offroad_map
         )
     )
 
