@@ -3,8 +3,8 @@ import os
 # These environment variables need to be set before
 # import numpy to prevent numpy from spawning a lot of processes
 # which end up clogging up the system.
-os.environ["NUMEXPR_NUM_THREADS"]="1"
-os.environ["OMP_NUM_THREADS"]="1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
 
 import argparse
 import random
@@ -383,7 +383,7 @@ def process_one_episode(opt,
             else:
                 actions.append(
                     ((torch.tensor(a[t]) - data_stats['a_mean'])
-                        / data_stats['a_std'])
+                     / data_stats['a_std'])
                 )
                 if mu is not None:
                     mu_list.append(mu.data.cpu().numpy())
@@ -425,7 +425,7 @@ def process_one_episode(opt,
             image_green[ego_mask] = 0
             image_red[ego_mask] = 0
             image_blue[ego_mask] = ego_value[ego_mask]
-            images_3_channels = torch.stack([image_red,image_green,image_blue],dim=1)
+            images_3_channels = torch.stack([image_red, image_green, image_blue], dim=1)
         else:
             images_3_channels = (images[:, :3] + images[:, 3:]).clamp(max=255)
         utils.save_movie(path.join(movie_dir, 'ego'),
@@ -527,14 +527,14 @@ def main():
     # different performance metrics
     time_travelled, distance_travelled, road_completed = [], [], []
     # values saved for later inspection
-    action_sequences, state_sequences, cost_sequences =  [], [], []
+    action_sequences, state_sequences, cost_sequences = [], [], []
 
     writer = utils.create_tensorboard_writer(opt)
 
     n_test = len(splits['test_indx'])
 
-    # set_start_method('spawn')
-    # pool = Pool(opt.num_processes)
+    set_start_method('spawn')
+    pool = Pool(opt.num_processes)
 
     async_results = []
 
@@ -545,28 +545,28 @@ def main():
         car_path = dataloader.ids[splits['test_indx'][j]]
         timeslot, car_id = utils.parse_car_path(car_path)
         car_sizes = torch.tensor(
-                    dataloader.car_sizes[sorted(list(dataloader.car_sizes.keys()))[
-                        timeslot]][car_id]
-                )[None, :]
+            dataloader.car_sizes[sorted(list(dataloader.car_sizes.keys()))[
+                timeslot]][car_id]
+        )[None, :]
         async_results.append(
-            # pool.apply_async(
-            process_one_episode(
-                opt,
-                env,
-                car_path,
-                forward_model,
-                policy_network_il,
-                data_stats,
-                plan_file,
-                j,
-                car_sizes
+            pool.apply_async(
+                process_one_episode(
+                    opt,
+                    env,
+                    car_path,
+                    forward_model,
+                    policy_network_il,
+                    data_stats,
+                    plan_file,
+                    j,
+                    car_sizes
+                )
             )
-            # )
         )
 
     for j in range(n_test):
-        # simulation_result = async_results[j].get()
-        simulation_result = async_results[j]
+        simulation_result = async_results[j].get()
+        # simulation_result = async_results[j]
         time_travelled.append(simulation_result.time_travelled)
         distance_travelled.append(simulation_result.distance_travelled)
         road_completed.append(simulation_result.road_completed)
@@ -604,8 +604,8 @@ def main():
             writer.add_scalar('ByEpisode/Distance',
                               simulation_result.distance_travelled, j)
 
-    #pool.close()
-    #pool.join()
+    pool.close()
+    pool.join()
 
     diff_time = time.time() - time_started
     print('avg time travelled per second is', total_images / diff_time)
