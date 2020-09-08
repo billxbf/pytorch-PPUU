@@ -498,7 +498,7 @@ def main():
         if hasattr(forward_model, 'value_function'):
             forward_model.value_function.train()
         planning.estimate_uncertainty_stats(
-            forward_model, dataloader, n_batches=50, npred=opt.npred, pad=opt.pad)
+            forward_model, dataloader, n_batches=50, npred=opt.npred, pad=opt.pad, offroad_range=forward_model.policy_net.opt.offroad_range)
 
     gym.envs.registration.register(
         id='I-80-v1',
