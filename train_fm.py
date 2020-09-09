@@ -81,7 +81,7 @@ opt.model_file += f'-output_h={opt.output_h}'
 if opt.use_colored_lane:
     opt.model_file += f'-ksize={opt.ksize}'
     opt.model_file += f'-pt={opt.position_threshold}'
-opt.model_file += f'-state_z={opt.state_z}'
+opt.model_file += f'-concat_h={opt.concat_h}'
 print(f'[will save model as: {opt.model_file}]')
 
 
@@ -95,7 +95,7 @@ if opt.layers == 3:
     opt.h_width = 3
 elif opt.layers == 4:
     opt.h_height = 7
-    opt.h_width = 1
+opt.h_width = 1
 opt.hidden_size = opt.nfeature*opt.h_height*opt.h_width
 
 mfile = opt.model_file + '.model'
