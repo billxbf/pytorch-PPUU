@@ -550,7 +550,7 @@ def main():
         )[None, :]
         async_results.append(
             pool.apply_async(
-                process_one_episode(
+                process_one_episode, (
                     opt,
                     env,
                     car_path,
