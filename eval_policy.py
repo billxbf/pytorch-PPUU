@@ -383,7 +383,7 @@ def process_one_episode(opt,
             else:
                 actions.append(
                     ((torch.tensor(a[t]) - data_stats['a_mean'])
-                     / data_stats['a_std'])
+                        / data_stats['a_std'])
                 )
                 if mu is not None:
                     mu_list.append(mu.data.cpu().numpy())
@@ -527,14 +527,14 @@ def main():
     # different performance metrics
     time_travelled, distance_travelled, road_completed = [], [], []
     # values saved for later inspection
-    action_sequences, state_sequences, cost_sequences = [], [], []
+    action_sequences, state_sequences, cost_sequences =  [], [], []
 
     writer = utils.create_tensorboard_writer(opt)
 
     n_test = len(splits['test_indx'])
 
-    set_start_method('spawn')
-    pool = Pool(opt.num_processes)
+    #set_start_method('spawn')
+    #pool = Pool(opt.num_processes)
 
     async_results = []
 
@@ -545,12 +545,12 @@ def main():
         car_path = dataloader.ids[splits['test_indx'][j]]
         timeslot, car_id = utils.parse_car_path(car_path)
         car_sizes = torch.tensor(
-            dataloader.car_sizes[sorted(list(dataloader.car_sizes.keys()))[
-                timeslot]][car_id]
-        )[None, :]
+                    dataloader.car_sizes[sorted(list(dataloader.car_sizes.keys()))[
+                        timeslot]][car_id]
+                )[None, :]
         async_results.append(
-            pool.apply_async(
-                process_one_episode, (
+            #pool.apply_async(
+                process_one_episode(
                     opt,
                     env,
                     car_path,
@@ -561,12 +561,12 @@ def main():
                     j,
                     car_sizes
                 )
-            )
+            #)
         )
 
     for j in range(n_test):
-        simulation_result = async_results[j].get()
-        # simulation_result = async_results[j]
+        #simulation_result = async_results[j].get()
+        simulation_result = async_results[j]
         time_travelled.append(simulation_result.time_travelled)
         distance_travelled.append(simulation_result.distance_travelled)
         road_completed.append(simulation_result.road_completed)
@@ -604,8 +604,8 @@ def main():
             writer.add_scalar('ByEpisode/Distance',
                               simulation_result.distance_travelled, j)
 
-    pool.close()
-    pool.join()
+    #pool.close()
+    #pool.join()
 
     diff_time = time.time() - time_started
     print('avg time travelled per second is', total_images / diff_time)
