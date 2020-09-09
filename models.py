@@ -93,11 +93,17 @@ class u_network(nn.Module):
     def __init__(self, opt):
         super(u_network, self).__init__()
         self.opt = opt
+
+        if hasattr(self.opt, 'concat_h') and self.opt.concat_h == 1:
+            self.input_nfeature = self.opt.nfeature * 3
+        else:
+            self.input_nfeature = self.opt.nfeature
+
         self.encoder = nn.Sequential(
-            nn.Conv2d(self.opt.nfeature, self.opt.nfeature, 4, 2, 1),
+            nn.Conv2d(self.input_nfeature, self.input_nfeature, 4, 2, 1),
             nn.Dropout2d(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(self.opt.nfeature, self.opt.nfeature, (4, 1), 2, 1)
+            nn.Conv2d(self.input_nfeature, self.input_nfeature, (4, 1), 2, 1)
         )
 
         self.decoder = nn.Sequential(
@@ -108,7 +114,7 @@ class u_network(nn.Module):
         )
 
         assert(self.opt.layers == 3) # hardcoded sizes
-        self.hidden_size = self.opt.nfeature*3*2
+        self.hidden_size = self.input_nfeature*3*2
         self.fc = nn.Sequential(
             nn.Linear(self.hidden_size, self.opt.nfeature),
             nn.Dropout(p=opt.dropout, inplace=True),
@@ -712,10 +718,15 @@ class FwdCNN_VAE(nn.Module):
             z_list.append(z)
             z_exp = self.z_expander(z).view(bsize, self.opt.nfeature, self.opt.h_height, self.opt.h_width)
             h_x = h_x.view(bsize, self.opt.nfeature, self.opt.h_height, self.opt.h_width)
-            h = h_x + z_exp
-            a_emb = self.a_encoder(actions[:, t]).view(h.size())
-            h = h + a_emb
-            h = h + self.u_network(h)
+            a_emb = self.a_encoder(actions[:, t]).view(h_x.size())
+            if hasattr(self.opt,'concat_h') and  self.opt.concat_h == 1:
+                h = torch.cat([h_x, z_exp], dim=1)
+                h = torch.cat([h, a_emb], dim=1)
+                h = h_x + self.u_network(h)
+            else:
+                h = h_x + z_exp
+                h = h + a_emb
+                h = h + self.u_network(h)
             if hasattr(self.opt, 'output_h') and self.opt.output_h:
                 pred_hidden_variables.append(h)
             pred_image, pred_state = self.decoder(h)

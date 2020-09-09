@@ -49,6 +49,7 @@ parser.add_argument('-use_offroad_map', type=bool, default=False, help='use offr
 parser.add_argument('-output_h', type=bool, default=False, help='output the hidden variables for cost model')
 parser.add_argument('-ksize', type=int, default=7, help='kernel size for blurring')
 parser.add_argument('-position_threshold', type=int, default=1, help='threshold for position cost')
+parser.add_argument('-concat_h', type=int, default=0, help='concat h for avoid overwritten')
 opt = parser.parse_args()
 
 os.system('mkdir -p ' + opt.model_dir)
@@ -80,6 +81,7 @@ opt.model_file += f'-output_h={opt.output_h}'
 if opt.use_colored_lane:
     opt.model_file += f'-ksize={opt.ksize}'
     opt.model_file += f'-pt={opt.position_threshold}'
+opt.model_file += f'-state_z={opt.state_z}'
 print(f'[will save model as: {opt.model_file}]')
 
 
