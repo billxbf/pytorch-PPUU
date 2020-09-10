@@ -610,14 +610,14 @@ class FwdCNN_VAE(nn.Module):
             self.decoder.n_out = 1
 
         if hasattr(self.opt, 'concat') and self.opt.concat==1:
-            self.hidden_z_size = opt.hidden_size * 2
+            self.z_size = opt.hidden_size * 3
         else:
-            self.hidden_z_size = opt.hidden_size
+            self.z_size = opt.hidden_size
 
         self.y_encoder = encoder(opt, 0, 1, states=False)
 
         self.z_network = nn.Sequential(
-            nn.Linear(self.hidden_z_size, opt.nfeature),
+            nn.Linear(self.z_size, opt.nfeature),
             nn.Dropout(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(opt.nfeature, opt.nfeature),
