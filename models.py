@@ -82,10 +82,15 @@ class encoder(nn.Module):
         bsize = images.size(0)
         h = self.f_encoder(images.view(bsize, self.n_inputs * self.n_channels, self.opt.height, self.opt.width))
         if states is not None:
-            h = h + self.s_encoder(states.contiguous().view(bsize, -1)).view(h.size())
+            if hasattr(self.opt, 'concat') and self.opt.concat:
+                h = torch.cat([h, self.s_encoder(states.contiguous().view(bsize, -1)).view(h.size())], dim=1)
+            else:
+                h = h + self.s_encoder(states.contiguous().view(bsize, -1)).view(h.size())
         if actions is not None:
-            a = self.a_encoder(actions.contiguous().view(bsize, self.a_size))
-            h = h + a.view(h.size())
+            if hasattr(self.opt, 'concat') and self.opt.concat:
+                h = torch.cat([h, self.a_encoder(actions.contiguous().view(bsize, self.a_size)).view(h.size())], dim=1)
+            else:
+                h = h + self.a_encoder(actions.contiguous().view(bsize, self.a_size)).view(h.size())
         return h
 
 
@@ -94,10 +99,12 @@ class u_network(nn.Module):
         super(u_network, self).__init__()
         self.opt = opt
 
-        if hasattr(self.opt, 'concat_h') and self.opt.concat_h == 1:
-            self.input_nfeature = self.opt.nfeature * 3
+        if hasattr(self.opt, 'concat') and self.opt.concat:
+            self.output_nfeature = self.opt.nfeature * 2
+            self.input_nfeature = self.output_nfeature * 3
         else:
-            self.input_nfeature = self.opt.nfeature
+            self.output_nfeature = self.opt.nfeature
+            self.input_nfeature = self.output_nfeature
 
         self.encoder = nn.Sequential(
             nn.Conv2d(self.input_nfeature, self.input_nfeature, 4, 2, 1),
@@ -107,25 +114,28 @@ class u_network(nn.Module):
         )
 
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(self.opt.nfeature, self.opt.nfeature, (4, 1), 2, 1),
+            nn.ConvTranspose2d(self.output_nfeature, self.output_nfeature, (4, 1), 2, 1),
             nn.Dropout2d(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.ConvTranspose2d(self.opt.nfeature, self.opt.nfeature, (4, 3), 2, 0)
+            nn.ConvTranspose2d(self.output_nfeature, self.output_nfeature, (4, 3), 2, 0)
         )
 
         assert(self.opt.layers == 3) # hardcoded sizes
-        self.hidden_size = self.input_nfeature*3*2
+        self.hidden_size_input = self.input_nfeature * 3 * 2
+        self.hidden_size_output = self.output_nfeature * 3 * 2
         self.fc = nn.Sequential(
-            nn.Linear(self.hidden_size, self.opt.nfeature),
+            nn.Linear(self.hidden_size_input, self.hidden_size_output),
             nn.Dropout(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(self.opt.nfeature, self.opt.nfeature*3*2)
+            nn.Linear(self.hidden_size_output, self.hidden_size_output)
         )
 
     def forward(self, h):
         h1 = self.encoder(h)
-        h2 = self.fc(h1.view(-1, self.hidden_size))
-        h2 = h2.view(h1.size())
+        h2 = self.fc(h1.view(-1, self.hidden_size_input))
+        output_size = h.size()
+        output_size[1] = output_size[1]//3
+        h2 = h2.view(output_size)
         h3 = self.decoder(h2)
         return h3
 
@@ -142,9 +152,15 @@ class decoder(nn.Module):
             self.n_channels = 4
             if hasattr(self.opt, "use_offroad_map") and self.opt.use_offroad_map:
                 self.n_channels = 5
+
+        if hasattr(self.opt, 'concat') and self.opt.concat:
+            self.input_nfeature = self.opt.nfeature * 2
+        else:
+            self.input_nfeature = self.opt.nfeature
+
         if self.opt.layers == 3:
             assert(opt.nfeature % 4 == 0)
-            self.feature_maps = [int(opt.nfeature/4), int(opt.nfeature/2), opt.nfeature]
+            self.feature_maps = [int(self.input_nfeature/4), int(self.input_nfeature/2), self.input_nfeature]
             self.f_decoder = nn.Sequential(
                 nn.ConvTranspose2d(self.feature_maps[2], self.feature_maps[1], (4, 4), 2, 1),
                 nn.Dropout2d(p=opt.dropout, inplace=True),
@@ -593,10 +609,15 @@ class FwdCNN_VAE(nn.Module):
             self.encoder.n_inputs = opt.ncond
             self.decoder.n_out = 1
 
+        if hasattr(self.opt, 'concat') and self.opt.concat:
+            self.hidden_z_size = opt.hidden_size * 2
+        else:
+            self.hidden_z_size = opt.hidden_size
+
         self.y_encoder = encoder(opt, 0, 1, states=False)
 
         self.z_network = nn.Sequential(
-            nn.Linear(opt.hidden_size, opt.nfeature),
+            nn.Linear(self.hidden_z_size, opt.nfeature),
             nn.Dropout(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(opt.nfeature, opt.nfeature),
@@ -698,7 +719,11 @@ class FwdCNN_VAE(nn.Module):
                 if random.random() < z_dropout:
                     z = self.sample_z(bsize, method=None, h_x=h_x).data
                 else:
-                    mu_logvar = self.z_network((h_x + h_y).view(bsize, -1)).view(bsize, 2, self.opt.nz)
+                    if hasattr(self.opt,'concat') and self.opt.concat:
+                        h_z = h_x+h_y
+                    else:
+                        h_z = torch.cat([h_x, h_y],dim=1)
+                    mu_logvar = self.z_network(h_z.view(bsize, -1)).view(bsize, 2, self.opt.nz)
                     mu = mu_logvar[:, 0]
                     logvar = mu_logvar[:, 1]
                     z = self.reparameterize(mu, logvar, True)
