@@ -101,7 +101,7 @@ class u_network(nn.Module):
 
         if hasattr(self.opt, 'concat') and self.opt.concat==1:
             self.output_nfeature = self.opt.nfeature * 2
-            self.input_nfeature = self.output_nfeature * 3
+            self.input_nfeature = self.output_nfeature * 4
         else:
             self.output_nfeature = self.opt.nfeature
             self.input_nfeature = self.output_nfeature
