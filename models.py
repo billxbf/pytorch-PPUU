@@ -119,7 +119,7 @@ class u_network(nn.Module):
             nn.Linear(self.hidden_size, self.opt.nfeature),
             nn.Dropout(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(self.opt.nfeature, self.hidden_size)
+            nn.Linear(self.opt.nfeature, self.opt.nfeature*3*2)
         )
 
     def forward(self, h):
@@ -719,7 +719,7 @@ class FwdCNN_VAE(nn.Module):
             z_exp = self.z_expander(z).view(bsize, self.opt.nfeature, self.opt.h_height, self.opt.h_width)
             h_x = h_x.view(bsize, self.opt.nfeature, self.opt.h_height, self.opt.h_width)
             a_emb = self.a_encoder(actions[:, t]).view(h_x.size())
-            if hasattr(self.opt,'concat_h') and  self.opt.concat_h == 1:
+            if hasattr(self.opt, 'concat_h') and  self.opt.concat_h == 1:
                 h = torch.cat([h_x, z_exp], dim=1)
                 h = torch.cat([h, a_emb], dim=1)
                 h = h_x + self.u_network(h)
