@@ -95,7 +95,7 @@ if opt.layers == 3:
     opt.h_width = 3
 elif opt.layers == 4:
     opt.h_height = 7
-opt.h_width = 1
+    opt.h_width = 1
 opt.hidden_size = opt.nfeature*opt.h_height*opt.h_width
 
 mfile = opt.model_file + '.model'
