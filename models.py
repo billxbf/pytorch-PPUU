@@ -720,9 +720,9 @@ class FwdCNN_VAE(nn.Module):
                     z = self.sample_z(bsize, method=None, h_x=h_x).data
                 else:
                     if hasattr(self.opt,'concat') and self.opt.concat==1:
-                        h_z = h_x+h_y
-                    else:
                         h_z = torch.cat([h_x, h_y],dim=1)
+                    else:
+                        h_z = h_x + h_y
                     mu_logvar = self.z_network(h_z.view(bsize, -1)).view(bsize, 2, self.opt.nz)
                     mu = mu_logvar[:, 0]
                     logvar = mu_logvar[:, 1]
