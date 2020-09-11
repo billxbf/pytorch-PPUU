@@ -155,7 +155,7 @@ class decoder(nn.Module):
             if hasattr(self.opt, "use_offroad_map") and self.opt.use_offroad_map:
                 self.n_channels = 5
 
-        if hasattr(self.opt, 'concat') and self.opt.concat==1:
+        if hasattr(self.opt, 'concat') and self.opt.concat == 1:
             self.input_nfeature = self.opt.nfeature * 2
         else:
             self.input_nfeature = self.opt.nfeature
@@ -639,9 +639,6 @@ class FwdCNN_VAE(nn.Module):
                 nn.Linear(opt.nfeature, 2*opt.nz)
             )
 
-        if hasattr(self.opt, 'cost_decoder') and self.opt.cost_decoder:
-            self.opt.pred_from_h = True
-            self.cost = CostPredictor(opt)
         self.z_zero = torch.zeros(self.opt.batch_size, self.opt.nz)
         self.z_expander = nn.Linear(opt.nz, opt.hidden_size)
 
@@ -679,10 +676,7 @@ class FwdCNN_VAE(nn.Module):
         # pred_state = torch.clamp(pred_state + input_states[:, -1], min=-6, max=6)
         pred_state = pred_state + input_states[:, -1]
 
-        if hasattr(self.opt, 'output_h') and self.opt.output_h:
-            return pred_image, pred_state, h
-        else:
-            return pred_image, pred_state
+        return pred_image, pred_state
 
     def forward(self, inputs, actions, targets, save_z=False, sampling=None, z_dropout=0.0, z_seq=None, noise=None):
         input_images, input_states = inputs
@@ -693,26 +687,12 @@ class FwdCNN_VAE(nn.Module):
         ploss2 = torch.zeros(1).cuda()
 
         pred_images, pred_states = [], []
-        if hasattr(self.opt, 'cost_decoder') and self.opt.cost_decoder:
-            pred_costs = []
         z_list = []
-        if self.opt.use_colored_lane:
-            n_channels = 4
-            if hasattr(self.opt,"use_offroad_map") and self.opt.use_offroad_map:
-                n_channels = 5
-        else:
-            n_channels = 3
-        if hasattr(self.opt, 'output_h') and self.opt.output_h:
-            target_hidden_variables = []
-            pred_hidden_variables = []
 
         z = None
         for t in range(npred):
             # encode the inputs (without the action)
             h_x = self.encoder(input_images, input_states)
-            if hasattr(self.opt, 'output_h') and self.opt.output_h:
-                target_hidden_variables.append(h_x)
-
             if sampling is None:
                 # we are training or estimating z distribution
                 target_images, target_states, _ = targets
@@ -754,19 +734,13 @@ class FwdCNN_VAE(nn.Module):
                 h = h_x + z_exp
                 h = h + a_emb
                 h = h + self.u_network(h)
-            if hasattr(self.opt, 'output_h') and self.opt.output_h:
-                pred_hidden_variables.append(h)
             pred_image, pred_state = self.decoder(h)
             if sampling is not None:
                 pred_image.detach()
                 pred_state.detach()
             pred_image = torch.sigmoid(pred_image + input_images[:, -1].unsqueeze(1)) # possible problem for cost model
             pred_state = pred_state + input_states[:, -1]
-            if hasattr(self.opt, 'cost_decoder') and self.opt.cost_decoder:
-                pred_cost = self.cost(pred_image.view(self.opt.batch_size, 1, n_channels, self.opt.height, self.opt.width),
-                                 pred_state.view(self.opt.batch_size, 1, 4),
-                                 hidden=h.view(self.opt.batch_size, 1, -1))
-                pred_costs.append(pred_cost)
+
             input_images = torch.cat((input_images[:, 1:], pred_image), 1)
             input_states = torch.cat((input_states[:, 1:], pred_state.unsqueeze(1)), 1)
             pred_images.append(pred_image)
@@ -775,17 +749,8 @@ class FwdCNN_VAE(nn.Module):
         pred_images = torch.cat(pred_images, 1)
         pred_states = torch.stack(pred_states, 1)
         z_list = torch.stack(z_list, 1)
-
         preds = [pred_images, pred_states, z_list]
         targets = [ploss, ploss2]
-        if hasattr(self.opt, 'output_h') and self.opt.output_h:
-            pred_hidden_variables = torch.stack(pred_hidden_variables, 1)
-            target_hidden_variables = torch.stack(target_hidden_variables, 1)
-            preds.append(pred_hidden_variables)
-            targets.append(target_hidden_variables)
-        if hasattr(self.opt, 'cost_decoder') and self.opt.cost_decoder:
-            pred_costs = torch.stack(pred_costs, 1)
-            preds.append(pred_costs)
         return preds, targets
 
     def reset_action_buffer(self, npred):
@@ -849,44 +814,24 @@ class CostPredictor(nn.Module):
     def __init__(self, opt):
         super(CostPredictor, self).__init__()
         self.opt = opt
-        if not opt.pred_from_h:
-            self.encoder = encoder(opt, 0, 1)
+        self.encoder = encoder(opt, 0, 1)
         self.hsize = opt.nfeature*self.opt.h_height*self.opt.h_width
         self.proj = nn.Linear(self.hsize, opt.n_hidden)
 
-        if opt.cost_dropout == 1:
-            self.fc = nn.Sequential(
-                nn.Linear(opt.n_hidden, opt.n_hidden),
-                nn.Dropout(p=opt.dropout, inplace=True),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Linear(opt.n_hidden, opt.n_hidden),
-                nn.Dropout(p=opt.dropout, inplace=True),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Linear(opt.n_hidden, opt.n_hidden),
-                nn.Dropout(p=opt.dropout, inplace=True),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Linear(opt.n_hidden, 3 if opt.use_colored_lane else 2),
-                nn.Tanh()
-            )
-        else:
-            self.fc = nn.Sequential(
-                nn.Linear(opt.n_hidden, opt.n_hidden),
-                nn.ReLU(),
-                nn.Linear(opt.n_hidden, opt.n_hidden),
-                nn.ReLU(),
-                nn.Linear(opt.n_hidden, opt.n_hidden),
-                nn.ReLU(),
-                nn.Linear(opt.n_hidden, 3 if opt.use_colored_lane else 2),
-                nn.Tanh()
-            )
+        self.fc = nn.Sequential(
+            nn.Linear(opt.n_hidden, opt.n_hidden),
+            nn.ReLU(),
+            nn.Linear(opt.n_hidden, opt.n_hidden),
+            nn.ReLU(),
+            nn.Linear(opt.n_hidden, opt.n_hidden),
+            nn.ReLU(),
+            nn.Linear(opt.n_hidden, 2),
+            nn.Tanh()
+        )
 
-
-    def forward(self, state_images, states, hidden=None):
+    def forward(self, state_images, states):
         bsize = state_images.size(0)
-        if self.opt.pred_from_h:
-            h = hidden.view(bsize, -1)
-        else:
-            h = self.encoder(state_images, states).view(bsize, self.hsize)
+        h = self.encoder(state_images, states).view(bsize, self.hsize)
         h = self.proj(h)
         h = self.fc(h)
         return h
@@ -1025,6 +970,7 @@ class DeterministicPolicy(nn.Module):
             assert(context is not None)
             h = h + self.context_encoder(context)
         a = self.fc(h).view(bsize, self.n_outputs)
+
         if normalize_outputs:  # done only at inference time, if only "volatile" was still a thing...
             a = a.data
             a.clamp_(-3, 3)
