@@ -133,11 +133,15 @@ class u_network(nn.Module):
     def forward(self, h):
         h1 = self.encoder(h)
         h2 = self.fc(h1.view(-1, self.hidden_size_input))
+        output_size = h1.size()
         if hasattr(self.opt,"concat") and self.opt.concat==1:
             output_size = h1.size()
-            h2 = h2.view(output_size[0], output_size[1]//2, output_size[2], output_size[3])
+            h2 = h2.view(output_size[0], output_size[1] // 2, output_size[2], output_size[3])
         else:
-            h2 = h2.view(h1.size())
+            if hasattr(self.opt, "concat") and self.opt.concat == 2:
+                h2 = h2.view(output_size[0], output_size[1] // 3 * 2, output_size[2], output_size[3])
+            else:
+                h2 = h2.view(output_size)
         h3 = self.decoder(h2)
         return h3
 
