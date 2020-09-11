@@ -99,9 +99,12 @@ class u_network(nn.Module):
         super(u_network, self).__init__()
         self.opt = opt
 
-        if hasattr(self.opt, 'concat') and self.opt.concat>=1:
+        if hasattr(self.opt, 'concat') and self.opt.concat==1:
             self.output_nfeature = self.opt.nfeature * 2
             self.input_nfeature = self.opt.nfeature * 4
+        elif hasattr(self.opt, 'concat') and self.opt.concat==2:
+            self.output_nfeature = self.opt.nfeature * 2
+            self.input_nfeature = self.opt.nfeature * 3
         else:
             self.output_nfeature = self.opt.nfeature
             self.input_nfeature = self.opt.nfeature
@@ -134,14 +137,7 @@ class u_network(nn.Module):
         h1 = self.encoder(h)
         h2 = self.fc(h1.view(-1, self.hidden_size_input))
         output_size = h1.size()
-        if hasattr(self.opt,"concat") and self.opt.concat==1:
-            output_size = h1.size()
-            h2 = h2.view(output_size[0], output_size[1] // 2, output_size[2], output_size[3])
-        else:
-            if hasattr(self.opt, "concat") and self.opt.concat == 2:
-                h2 = h2.view(output_size[0], output_size[1] // 3 * 2, output_size[2], output_size[3])
-            else:
-                h2 = h2.view(output_size)
+        h2 = h2.view(output_size[0], self.output_nfeature, output_size[2], output_size[3])
         h3 = self.decoder(h2)
         return h3
 
