@@ -101,7 +101,10 @@ class u_network(nn.Module):
 
         if hasattr(self.opt, 'concat') and self.opt.concat==1:
             self.output_nfeature = self.opt.nfeature * 2
-            self.input_nfeature = self.opt.nfeature * 4
+            self.input_nfeature = self.opt.nfeature * 2
+        elif hasattr(self.opt, 'concat') and self.opt.concat==3:
+            self.output_nfeature = self.opt.nfeature * 2
+            self.input_nfeature = self.opt.nfeature * 6
         else:
             self.output_nfeature = self.opt.nfeature
             self.input_nfeature = self.opt.nfeature
@@ -586,6 +589,10 @@ class FwdCNN_VAE(nn.Module):
         if mfile == '':
             self.encoder = encoder(opt, 0, opt.ncond)
             self.decoder = decoder(opt)
+            if hasattr(self.opt, 'concat') and self.opt.concat == 1:
+                self.output_a_size = opt.hidden_size * 2
+            else:
+                self.output_a_size = opt.hidden_size
             self.a_encoder = nn.Sequential(
                 nn.Linear(self.opt.n_actions, self.opt.nfeature),
                 nn.Dropout(p=opt.dropout, inplace=True),
@@ -593,7 +600,7 @@ class FwdCNN_VAE(nn.Module):
                 nn.Linear(self.opt.nfeature, self.opt.nfeature),
                 nn.Dropout(p=opt.dropout, inplace=True),
                 nn.LeakyReLU(0.2, inplace=True),
-                nn.Linear(self.opt.nfeature, self.opt.hidden_size)
+                nn.Linear(self.opt.nfeature, self.output_a_size)
             )
             self.u_network = u_network(opt)
         else:
@@ -609,14 +616,14 @@ class FwdCNN_VAE(nn.Module):
             self.decoder.n_out = 1
 
         if hasattr(self.opt, 'concat') and self.opt.concat==1:
-            self.z_size = opt.hidden_size * 3
+            self.input_z_size = opt.hidden_size * 2
         else:
-            self.z_size = opt.hidden_size
+            self.input_z_size = opt.hidden_size
 
         self.y_encoder = encoder(opt, 0, 1, states=False)
 
         self.z_network = nn.Sequential(
-            nn.Linear(self.z_size, opt.nfeature),
+            nn.Linear(self.input_z_size, opt.nfeature),
             nn.Dropout(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(opt.nfeature, opt.nfeature),
@@ -637,7 +644,11 @@ class FwdCNN_VAE(nn.Module):
             )
 
         self.z_zero = torch.zeros(self.opt.batch_size, self.opt.nz)
-        self.z_expander = nn.Linear(opt.nz, opt.hidden_size)
+        if hasattr(self.opt, 'concat') and self.opt.concat==1:
+            expand_z_size = opt.hidden_size * 2
+        else:
+            expand_z_size = opt.hidden_size
+        self.z_expander = nn.Linear(opt.nz, expand_z_size)
 
     def reparameterize(self, mu, logvar, sample):
         if self.training or sample:
@@ -698,9 +709,11 @@ class FwdCNN_VAE(nn.Module):
                 if random.random() < z_dropout:
                     z = self.sample_z(bsize, method=None, h_x=h_x).data
                 else:
-                    if hasattr(self.opt,'concat') and self.opt.concat==1:
+                    if hasattr(self.opt,'concat') and self.opt.concat==2:
                         h_z = torch.cat([h_x, h_y],dim=1)
                     else:
+                        if hasattr(self.opt,'concat') and self.opt.concat==1:
+                            h_y = torch.cat([h_y,torch.zeros_like(h_y)], dim=1)
                         h_z = h_x + h_y
                     mu_logvar = self.z_network(h_z.view(bsize, -1)).view(bsize, 2, self.opt.nz)
                     mu = mu_logvar[:, 0]
@@ -723,7 +736,7 @@ class FwdCNN_VAE(nn.Module):
             z_exp = self.z_expander(z).view(bsize, -1, self.opt.h_height, self.opt.h_width)
             h_x = h_x.view(bsize, -1, self.opt.h_height, self.opt.h_width)
             a_emb = self.a_encoder(actions[:, t]).view(z_exp.size())
-            if hasattr(self.opt, 'concat') and self.opt.concat == 1:
+            if hasattr(self.opt, 'concat') and self.opt.concat == 3:
                 h = torch.cat([h_x, z_exp], dim=1)
                 h = torch.cat([h, a_emb], dim=1)
                 h = h_x + self.u_network(h)
