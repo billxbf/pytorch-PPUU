@@ -709,7 +709,7 @@ class FwdCNN_VAE(nn.Module):
                     mu = mu_logvar[:, 0]
                     logvar = mu_logvar[:, 1]
                     z = self.reparameterize(mu, logvar, True)
-                    logvar = torch.clamp(logvar, max=4)  # this can go to inf when taking exp(), so clamp it
+                    # logvar = torch.clamp(logvar, max=4)  # this can go to inf when taking exp(), so clamp it
                     if self.opt.model == 'fwd-cnn-vae-fp':
                         kld = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
                         kld /= bsize
