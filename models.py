@@ -82,12 +82,12 @@ class encoder(nn.Module):
         bsize = images.size(0)
         h = self.f_encoder(images.view(bsize, self.n_inputs * self.n_channels, self.opt.height, self.opt.width))
         if states is not None:
-            if hasattr(self.opt, 'concat') and self.opt.concat==1:
+            if hasattr(self.opt, 'concat') and (self.opt.concat==1 or self.opt.concat==4):
                 h = torch.cat([h, self.s_encoder(states.contiguous().view(bsize, -1)).view(h.size())], dim=1)
             else:
                 h = h + self.s_encoder(states.contiguous().view(bsize, -1)).view(h.size())
         if actions is not None:
-            if hasattr(self.opt, 'concat') and self.opt.concat==1:
+            if hasattr(self.opt, 'concat') and (self.opt.concat==1 or self.opt.concat==4):
                 h = torch.cat([h, self.a_encoder(actions.contiguous().view(bsize, self.a_size)).view(h.size())], dim=1)
             else:
                 h = h + self.a_encoder(actions.contiguous().view(bsize, self.a_size)).view(h.size())
@@ -105,6 +105,9 @@ class u_network(nn.Module):
         elif hasattr(self.opt, 'concat') and self.opt.concat==3:
             self.output_nfeature = self.opt.nfeature * 3
             self.input_nfeature = self.opt.nfeature * 3
+        elif hasattr(self.opt, 'concat') and self.opt.concat==4:
+            self.output_nfeature = self.opt.nfeature * 6
+            self.input_nfeature = self.opt.nfeature * 6
         else:
             self.output_nfeature = self.opt.nfeature
             self.input_nfeature = self.opt.nfeature
@@ -159,6 +162,8 @@ class decoder(nn.Module):
             self.input_nfeature = self.opt.nfeature * 2
         elif hasattr(self.opt, 'concat') and self.opt.concat == 3:
             self.input_nfeature = self.opt.nfeature * 3
+        elif hasattr(self.opt, 'concat') and self.opt.concat == 4:
+            self.input_nfeature = self.opt.nfeature * 6
         else:
             self.input_nfeature = self.opt.nfeature
 
@@ -591,7 +596,7 @@ class FwdCNN_VAE(nn.Module):
         if mfile == '':
             self.encoder = encoder(opt, 0, opt.ncond)
             self.decoder = decoder(opt)
-            if hasattr(self.opt, 'concat') and self.opt.concat == 1:
+            if hasattr(self.opt, 'concat') and (self.opt.concat == 1 or self.opt.concat == 4):
                 self.output_a_size = opt.hidden_size * 2
             else:
                 self.output_a_size = opt.hidden_size
@@ -617,9 +622,7 @@ class FwdCNN_VAE(nn.Module):
             self.encoder.n_inputs = opt.ncond
             self.decoder.n_out = 1
 
-        if hasattr(self.opt, 'concat') and self.opt.concat==1:
-            self.input_z_size = opt.hidden_size * 2
-        elif hasattr(self.opt, 'concat') and self.opt.concat==2:
+        if hasattr(self.opt, 'concat') and (self.opt.concat==1 or self.opt.concat==2 or self.opt.concat==4):
             self.input_z_size = opt.hidden_size * 2
         else:
             self.input_z_size = opt.hidden_size
@@ -648,7 +651,7 @@ class FwdCNN_VAE(nn.Module):
             )
 
         self.z_zero = torch.zeros(self.opt.batch_size, self.opt.nz)
-        if hasattr(self.opt, 'concat') and self.opt.concat==1:
+        if hasattr(self.opt, 'concat') and (self.opt.concat==1 or self.opt.concat==4):
             expand_z_size = opt.hidden_size * 2
         else:
             expand_z_size = opt.hidden_size
@@ -713,7 +716,7 @@ class FwdCNN_VAE(nn.Module):
                 if random.random() < z_dropout:
                     z = self.sample_z(bsize, method=None, h_x=h_x).data
                 else:
-                    if hasattr(self.opt,'concat') and self.opt.concat==2:
+                    if hasattr(self.opt,'concat') and (self.opt.concat==2 or self.opt.concat==4):
                         h_z = torch.cat([h_x, h_y],dim=1)
                     else:
                         if hasattr(self.opt,'concat') and self.opt.concat==1:
@@ -740,7 +743,7 @@ class FwdCNN_VAE(nn.Module):
             z_exp = self.z_expander(z).view(bsize, -1, self.opt.h_height, self.opt.h_width)
             h_x = h_x.view(bsize, -1, self.opt.h_height, self.opt.h_width)
             a_emb = self.a_encoder(actions[:, t]).view(z_exp.size())
-            if hasattr(self.opt, 'concat') and self.opt.concat == 3:
+            if hasattr(self.opt, 'concat') and (self.opt.concat==3 or self.opt.concat==4):
                 h = torch.cat([h_x, z_exp], dim=1)
                 h = torch.cat([h, a_emb], dim=1)
                 h = h + self.u_network(h)
