@@ -82,12 +82,12 @@ class encoder(nn.Module):
         bsize = images.size(0)
         h = self.f_encoder(images.view(bsize, self.n_inputs * self.n_channels, self.opt.height, self.opt.width))
         if states is not None:
-            if hasattr(self.opt, 'concat') and (self.opt.concat==1 or self.opt.concat==4):
+            if hasattr(self.opt, 'concat') and self.opt.concat==1:
                 h = torch.cat([h, self.s_encoder(states.contiguous().view(bsize, -1)).view(h.size())], dim=1)
             else:
                 h = h + self.s_encoder(states.contiguous().view(bsize, -1)).view(h.size())
         if actions is not None:
-            if hasattr(self.opt, 'concat') and (self.opt.concat==1 or self.opt.concat==4):
+            if hasattr(self.opt, 'concat') and self.opt.concat==1:
                 h = torch.cat([h, self.a_encoder(actions.contiguous().view(bsize, self.a_size)).view(h.size())], dim=1)
             else:
                 h = h + self.a_encoder(actions.contiguous().view(bsize, self.a_size)).view(h.size())
@@ -100,12 +100,6 @@ class u_network(nn.Module):
         self.opt = opt
 
         if hasattr(self.opt, 'concat') and self.opt.concat==1:
-            self.output_nfeature = self.opt.nfeature * 2
-            self.input_nfeature = self.opt.nfeature * 2
-        elif hasattr(self.opt, 'concat') and self.opt.concat==3:
-            self.output_nfeature = self.opt.nfeature * 3
-            self.input_nfeature = self.opt.nfeature * 3
-        elif hasattr(self.opt, 'concat') and self.opt.concat==4:
             self.output_nfeature = self.opt.nfeature * 2
             self.input_nfeature = self.opt.nfeature * 2
         else:
@@ -158,14 +152,7 @@ class decoder(nn.Module):
             if hasattr(self.opt, "use_offroad_map") and self.opt.use_offroad_map:
                 self.n_channels = 5
 
-        if hasattr(self.opt, 'concat') and self.opt.concat == 1:
-            self.input_nfeature = self.opt.nfeature * 2
-        elif hasattr(self.opt, 'concat') and self.opt.concat == 3:
-            self.input_nfeature = self.opt.nfeature * 3
-        elif hasattr(self.opt, 'concat') and self.opt.concat == 4:
-            self.input_nfeature = self.opt.nfeature
-        else:
-            self.input_nfeature = self.opt.nfeature
+        self.input_nfeature = self.opt.nfeature
 
         if self.opt.layers == 3:
             assert(opt.nfeature % 4 == 0)
@@ -226,7 +213,7 @@ class decoder(nn.Module):
 
     def forward(self, h):
         bsize = h.size(0)
-        if hasattr(self.opt, 'concat') and self.opt.concat == 4:
+        if hasattr(self.opt, 'concat') and self.opt.concat == 1:
             h = h.view(bsize, self.feature_maps[-1]*2, self.opt.h_height, self.opt.h_width)
             pred_state = self.s_predictor(h[:, self.feature_maps[-1]:].view(bsize, -1))
             h = h[:, :self.feature_maps[-1]]
@@ -602,10 +589,7 @@ class FwdCNN_VAE(nn.Module):
         if mfile == '':
             self.encoder = encoder(opt, 0, opt.ncond)
             self.decoder = decoder(opt)
-            if hasattr(self.opt, 'concat') and (self.opt.concat == 1 or self.opt.concat == 4):
-                self.output_a_size = opt.hidden_size * 2
-            else:
-                self.output_a_size = opt.hidden_size
+            self.output_a_size = opt.hidden_size
             self.a_encoder = nn.Sequential(
                 nn.Linear(self.opt.n_actions, self.opt.nfeature),
                 nn.Dropout(p=opt.dropout, inplace=True),
@@ -628,10 +612,8 @@ class FwdCNN_VAE(nn.Module):
             self.encoder.n_inputs = opt.ncond
             self.decoder.n_out = 1
 
-        if hasattr(self.opt, 'concat') and (self.opt.concat==1 or self.opt.concat==2):
+        if hasattr(self.opt, 'concat') and self.opt.concat == 1:
             self.input_z_size = opt.hidden_size * 2
-        elif hasattr(self.opt, 'concat') and self.opt.concat == 4:
-            self.input_z_size = opt.hidden_size * 3
         else:
             self.input_z_size = opt.hidden_size
 
@@ -659,7 +641,7 @@ class FwdCNN_VAE(nn.Module):
             )
 
         self.z_zero = torch.zeros(self.opt.batch_size, self.opt.nz)
-        if hasattr(self.opt, 'concat') and (self.opt.concat == 1 or self.opt.concat == 4):
+        if hasattr(self.opt, 'concat') and self.opt.concat == 1:
             expand_z_size = opt.hidden_size * 2
         else:
             expand_z_size = opt.hidden_size
@@ -724,12 +706,7 @@ class FwdCNN_VAE(nn.Module):
                 if random.random() < z_dropout:
                     z = self.sample_z(bsize, method=None, h_x=h_x).data
                 else:
-                    if hasattr(self.opt, 'concat') and (self.opt.concat == 2 or self.opt.concat == 4):
-                        h_z = torch.cat([h_x, h_y], dim=1)
-                    else:
-                        if hasattr(self.opt, 'concat') and self.opt.concat == 1:
-                            h_y = torch.cat([h_y,torch.zeros_like(h_y)], dim=1)
-                        h_z = h_x + h_y
+                    h_z = h_x + h_y
                     mu_logvar = self.z_network(h_z.view(bsize, -1)).view(bsize, 2, self.opt.nz)
                     mu = mu_logvar[:, 0]
                     logvar = mu_logvar[:, 1]
