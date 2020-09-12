@@ -163,7 +163,7 @@ class decoder(nn.Module):
         elif hasattr(self.opt, 'concat') and self.opt.concat == 3:
             self.input_nfeature = self.opt.nfeature * 3
         elif hasattr(self.opt, 'concat') and self.opt.concat == 4:
-            self.input_nfeature = self.opt.nfeature * 2
+            self.input_nfeature = self.opt.nfeature * 4
         else:
             self.input_nfeature = self.opt.nfeature
 
@@ -748,7 +748,7 @@ class FwdCNN_VAE(nn.Module):
             if hasattr(self.opt, 'concat') and (self.opt.concat==3 or self.opt.concat==4):
                 h = torch.cat([h_x, z_exp], dim=1)
                 h = torch.cat([h, a_emb], dim=1)
-                h = h_x + self.u_network(h)
+                h = torch.cat([h_x + self.u_network(h)], dim=1)
             else:
                 h = h_x + z_exp
                 h = h + a_emb
