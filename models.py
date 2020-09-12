@@ -226,7 +226,6 @@ class decoder(nn.Module):
 
     def forward(self, h):
         bsize = h.size(0)
-        h = h.view(bsize, self.feature_maps[-1], self.opt.h_height, self.opt.h_width)
         if hasattr(self.opt, 'concat') and self.opt.concat == 4:
             h = h.view(bsize, self.feature_maps[-1]*2, self.opt.h_height, self.opt.h_width)
             pred_state = self.s_predictor(h[:, self.feature_maps[-1]:].view(bsize, -1))
