@@ -76,6 +76,7 @@ if opt.grad_clip != -1:
 
 opt.model_file += f'-warmstart={opt.warmstart}'
 opt.model_file += f'-seed={opt.seed}'
+opt.model_file += f'-reg={opt.reg}'
 if opt.use_colored_lane:
     opt.model_file += f'-ksize={opt.ksize}'
     opt.model_file += f'-pt={opt.position_threshold}'
