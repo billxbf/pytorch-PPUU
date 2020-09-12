@@ -82,15 +82,10 @@ class encoder(nn.Module):
         bsize = images.size(0)
         h = self.f_encoder(images.view(bsize, self.n_inputs * self.n_channels, self.opt.height, self.opt.width))
         if states is not None:
-            if hasattr(self.opt, 'concat') and self.opt.concat==1:
-                h = torch.cat([h, self.s_encoder(states.contiguous().view(bsize, -1)).view(h.size())], dim=1)
-            else:
-                h = h + self.s_encoder(states.contiguous().view(bsize, -1)).view(h.size())
+            h = h + self.s_encoder(states.contiguous().view(bsize, -1)).view(h.size())
         if actions is not None:
-            if hasattr(self.opt, 'concat') and self.opt.concat==1:
-                h = torch.cat([h, self.a_encoder(actions.contiguous().view(bsize, self.a_size)).view(h.size())], dim=1)
-            else:
-                h = h + self.a_encoder(actions.contiguous().view(bsize, self.a_size)).view(h.size())
+            a = self.a_encoder(actions.contiguous().view(bsize, self.a_size))
+            h = h + a.view(h.size())
         return h
 
 
@@ -98,43 +93,33 @@ class u_network(nn.Module):
     def __init__(self, opt):
         super(u_network, self).__init__()
         self.opt = opt
-
-        if hasattr(self.opt, 'concat') and self.opt.concat==1:
-            self.output_nfeature = self.opt.nfeature * 2
-            self.input_nfeature = self.opt.nfeature * 2
-        else:
-            self.output_nfeature = self.opt.nfeature
-            self.input_nfeature = self.opt.nfeature
-
         self.encoder = nn.Sequential(
-            nn.Conv2d(self.input_nfeature, self.input_nfeature, 4, 2, 1),
+            nn.Conv2d(self.opt.nfeature, self.opt.nfeature, 4, 2, 1),
             nn.Dropout2d(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(self.input_nfeature, self.input_nfeature, (4, 1), 2, 1)
+            nn.Conv2d(self.opt.nfeature, self.opt.nfeature, (4, 1), 2, 1)
         )
 
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(self.output_nfeature, self.output_nfeature, (4, 1), 2, 1),
+            nn.ConvTranspose2d(self.opt.nfeature, self.opt.nfeature, (4, 1), 2, 1),
             nn.Dropout2d(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.ConvTranspose2d(self.output_nfeature, self.output_nfeature, (4, 3), 2, 0)
+            nn.ConvTranspose2d(self.opt.nfeature, self.opt.nfeature, (4, 3), 2, 0)
         )
 
         assert(self.opt.layers == 3) # hardcoded sizes
-        self.hidden_size_input = self.input_nfeature * 3 * 2
-        self.hidden_size_output = self.output_nfeature * 3 * 2
+        self.hidden_size = self.opt.nfeature*3*2
         self.fc = nn.Sequential(
-            nn.Linear(self.hidden_size_input, self.hidden_size_output),
+            nn.Linear(self.hidden_size, self.hidden_size),
             nn.Dropout(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(self.hidden_size_output, self.hidden_size_output)
+            nn.Linear(self.hidden_size, self.hidden_size)
         )
 
     def forward(self, h):
         h1 = self.encoder(h)
-        h2 = self.fc(h1.view(-1, self.hidden_size_input))
-        output_size = h1.size()
-        h2 = h2.view(output_size[0], self.output_nfeature, output_size[2], output_size[3])
+        h2 = self.fc(h1.view(-1, self.hidden_size))
+        h2 = h2.view(h1.size())
         h3 = self.decoder(h2)
         return h3
 
@@ -151,12 +136,9 @@ class decoder(nn.Module):
             self.n_channels = 4
             if hasattr(self.opt, "use_offroad_map") and self.opt.use_offroad_map:
                 self.n_channels = 5
-
-        self.input_nfeature = self.opt.nfeature
-
         if self.opt.layers == 3:
             assert(opt.nfeature % 4 == 0)
-            self.feature_maps = [int(self.input_nfeature/4), int(self.input_nfeature/2), self.input_nfeature]
+            self.feature_maps = [int(opt.nfeature/4), int(opt.nfeature/2), opt.nfeature]
             self.f_decoder = nn.Sequential(
                 nn.ConvTranspose2d(self.feature_maps[2], self.feature_maps[1], (4, 4), 2, 1),
                 nn.Dropout2d(p=opt.dropout, inplace=True),
@@ -213,15 +195,8 @@ class decoder(nn.Module):
 
     def forward(self, h):
         bsize = h.size(0)
-        if hasattr(self.opt, 'concat') and self.opt.concat == 1:
-            h = h.view(bsize, self.feature_maps[-1]*2, self.opt.h_height, self.opt.h_width)
-            pred_state = self.s_predictor(h[:, self.feature_maps[-1]:].view(bsize, -1))
-            h = h[:, :self.feature_maps[-1]]
-        else:
-            h = h.view(bsize, self.feature_maps[-1], self.opt.h_height, self.opt.h_width)
-            h_reduced = self.h_reducer(h).view(bsize, -1)
-            pred_state = self.s_predictor(h_reduced)
-
+        h = h.view(bsize, self.feature_maps[-1], self.opt.h_height, self.opt.h_width)
+        pred_state = self.s_predictor(h.view(bsize, -1))
         pred_image = self.f_decoder(h)
         pred_image = pred_image[:, :, :self.opt.height, :self.opt.width].clone()
         pred_image = pred_image.view(bsize, 1, self.n_channels*self.n_out, self.opt.height, self.opt.width)
@@ -589,7 +564,6 @@ class FwdCNN_VAE(nn.Module):
         if mfile == '':
             self.encoder = encoder(opt, 0, opt.ncond)
             self.decoder = decoder(opt)
-            self.output_a_size = opt.hidden_size
             self.a_encoder = nn.Sequential(
                 nn.Linear(self.opt.n_actions, self.opt.nfeature),
                 nn.Dropout(p=opt.dropout, inplace=True),
@@ -597,7 +571,7 @@ class FwdCNN_VAE(nn.Module):
                 nn.Linear(self.opt.nfeature, self.opt.nfeature),
                 nn.Dropout(p=opt.dropout, inplace=True),
                 nn.LeakyReLU(0.2, inplace=True),
-                nn.Linear(self.opt.nfeature, self.output_a_size)
+                nn.Linear(self.opt.nfeature, self.opt.hidden_size)
             )
             self.u_network = u_network(opt)
         else:
@@ -612,15 +586,10 @@ class FwdCNN_VAE(nn.Module):
             self.encoder.n_inputs = opt.ncond
             self.decoder.n_out = 1
 
-        if hasattr(self.opt, 'concat') and self.opt.concat == 1:
-            self.input_z_size = opt.hidden_size * 2
-        else:
-            self.input_z_size = opt.hidden_size
-
         self.y_encoder = encoder(opt, 0, 1, states=False)
 
         self.z_network = nn.Sequential(
-            nn.Linear(self.input_z_size, opt.nfeature),
+            nn.Linear(opt.hidden_size, opt.nfeature),
             nn.Dropout(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(opt.nfeature, opt.nfeature),
@@ -641,11 +610,7 @@ class FwdCNN_VAE(nn.Module):
             )
 
         self.z_zero = torch.zeros(self.opt.batch_size, self.opt.nz)
-        if hasattr(self.opt, 'concat') and self.opt.concat == 1:
-            expand_z_size = opt.hidden_size * 2
-        else:
-            expand_z_size = opt.hidden_size
-        self.z_expander = nn.Linear(opt.nz, expand_z_size)
+        self.z_expander = nn.Linear(opt.nz, opt.hidden_size)
 
     def reparameterize(self, mu, logvar, sample):
         if self.training or sample:
@@ -706,8 +671,7 @@ class FwdCNN_VAE(nn.Module):
                 if random.random() < z_dropout:
                     z = self.sample_z(bsize, method=None, h_x=h_x).data
                 else:
-                    h_z = h_x + h_y
-                    mu_logvar = self.z_network(h_z.view(bsize, -1)).view(bsize, 2, self.opt.nz)
+                    mu_logvar = self.z_network((h_x + h_y).view(bsize, -1)).view(bsize, 2, self.opt.nz)
                     mu = mu_logvar[:, 0]
                     logvar = mu_logvar[:, 1]
                     z = self.reparameterize(mu, logvar, True)
@@ -725,10 +689,10 @@ class FwdCNN_VAE(nn.Module):
                     z = self.sample_z(bsize, method=None, h_x=h_x)
 
             z_list.append(z)
-            z_exp = self.z_expander(z).view(bsize, -1, self.opt.h_height, self.opt.h_width)
-            h_x = h_x.view(bsize, -1, self.opt.h_height, self.opt.h_width)
-            a_emb = self.a_encoder(actions[:, t]).view(z_exp.size())
+            z_exp = self.z_expander(z).view(bsize, self.opt.nfeature, self.opt.h_height, self.opt.h_width)
+            h_x = h_x.view(bsize, self.opt.nfeature, self.opt.h_height, self.opt.h_width)
             h = h_x + z_exp
+            a_emb = self.a_encoder(actions[:, t]).view(h.size())
             h = h + a_emb
             h = h + self.u_network(h)
             pred_image, pred_state = self.decoder(h)
@@ -967,7 +931,6 @@ class DeterministicPolicy(nn.Module):
             assert(context is not None)
             h = h + self.context_encoder(context)
         a = self.fc(h).view(bsize, self.n_outputs)
-
         if normalize_outputs:  # done only at inference time, if only "volatile" was still a thing...
             a = a.data
             a.clamp_(-3, 3)
