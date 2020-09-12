@@ -625,7 +625,7 @@ class FwdCNN_VAE(nn.Module):
         if hasattr(self.opt, 'concat') and (self.opt.concat==1 or self.opt.concat==2):
             self.input_z_size = opt.hidden_size * 2
         elif hasattr(self.opt, 'concat') and self.opt.concat == 4:
-            self.input_z_size = opt.hidden_size * 2
+            self.input_z_size = opt.hidden_size * 3
         else:
             self.input_z_size = opt.hidden_size
 
