@@ -746,7 +746,7 @@ class FwdCNN_VAE(nn.Module):
             if hasattr(self.opt, 'concat') and (self.opt.concat==3 or self.opt.concat==4):
                 h = torch.cat([h_x, z_exp], dim=1)
                 h = torch.cat([h, a_emb], dim=1)
-                h = h + self.u_network(h)
+                h = self.u_network(h)
             else:
                 h = h_x + z_exp
                 h = h + a_emb
@@ -755,10 +755,8 @@ class FwdCNN_VAE(nn.Module):
             if sampling is not None:
                 pred_image.detach()
                 pred_state.detach()
-            #pred_image = torch.sigmoid(pred_image + input_images[:, -1].unsqueeze(1)) # possible problem for cost model
-            #pred_state = pred_state + input_states[:, -1]
-            pred_image = torch.sigmoid(pred_image) # possible problem for cost model
-            pred_state = pred_state
+            pred_image = torch.sigmoid(pred_image + input_images[:, -1].unsqueeze(1)) # possible problem for cost model
+            pred_state = pred_state + input_states[:, -1]
 
             input_images = torch.cat((input_images[:, 1:], pred_image), 1)
             input_states = torch.cat((input_states[:, 1:], pred_state.unsqueeze(1)), 1)
