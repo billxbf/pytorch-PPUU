@@ -609,7 +609,7 @@ class FwdCNN_VAE(nn.Module):
                 nn.LeakyReLU(0.2, inplace=True),
                 nn.Linear(self.opt.nfeature, self.output_a_size)
             )
-            self.u_network = u_network(opt)
+            #self.u_network = u_network(opt)
         else:
             print('[initializing encoder and decoder with: {}]'.format(mfile))
             self.mfile = mfile
