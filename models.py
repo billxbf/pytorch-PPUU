@@ -106,7 +106,7 @@ class u_network(nn.Module):
             self.output_nfeature = self.opt.nfeature * 3
             self.input_nfeature = self.opt.nfeature * 3
         elif hasattr(self.opt, 'concat') and self.opt.concat==4:
-            self.output_nfeature = self.opt.nfeature * 6
+            self.output_nfeature = self.opt.nfeature * 2
             self.input_nfeature = self.opt.nfeature * 6
         else:
             self.output_nfeature = self.opt.nfeature
@@ -746,9 +746,9 @@ class FwdCNN_VAE(nn.Module):
             h_x = h_x.view(bsize, -1, self.opt.h_height, self.opt.h_width)
             a_emb = self.a_encoder(actions[:, t]).view(z_exp.size())
             if hasattr(self.opt, 'concat') and (self.opt.concat==3 or self.opt.concat==4):
-                h = torch.cat([h_x, z_exp], dim=1)
+                h = torch.cat([h_x.copy(), z_exp], dim=1)
                 h = torch.cat([h, a_emb], dim=1)
-                #h = h + self.u_network(h)
+                h = h_x + self.u_network(h)
             else:
                 h = h_x + z_exp
                 h = h + a_emb
