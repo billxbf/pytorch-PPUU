@@ -163,7 +163,7 @@ class decoder(nn.Module):
         elif hasattr(self.opt, 'concat') and self.opt.concat == 3:
             self.input_nfeature = self.opt.nfeature * 3
         elif hasattr(self.opt, 'concat') and self.opt.concat == 4:
-            self.input_nfeature = self.opt.nfeature * 6
+            self.input_nfeature = self.opt.nfeature * 4
         else:
             self.input_nfeature = self.opt.nfeature
 
@@ -596,7 +596,7 @@ class FwdCNN_VAE(nn.Module):
         if mfile == '':
             self.encoder = encoder(opt, 0, opt.ncond)
             self.decoder = decoder(opt)
-            if hasattr(self.opt, 'concat') and (self.opt.concat == 1 or self.opt.concat == 4):
+            if hasattr(self.opt, 'concat') and self.opt.concat == 1:
                 self.output_a_size = opt.hidden_size * 2
             else:
                 self.output_a_size = opt.hidden_size
@@ -653,7 +653,7 @@ class FwdCNN_VAE(nn.Module):
             )
 
         self.z_zero = torch.zeros(self.opt.batch_size, self.opt.nz)
-        if hasattr(self.opt, 'concat') and (self.opt.concat==1 or self.opt.concat==4):
+        if hasattr(self.opt, 'concat') and self.opt.concat==1:
             expand_z_size = opt.hidden_size * 2
         else:
             expand_z_size = opt.hidden_size
@@ -748,7 +748,7 @@ class FwdCNN_VAE(nn.Module):
             if hasattr(self.opt, 'concat') and (self.opt.concat==3 or self.opt.concat==4):
                 h = torch.cat([h_x, z_exp], dim=1)
                 h = torch.cat([h, a_emb], dim=1)
-                h = h + self.u_network(h)
+                #h = h + self.u_network(h)
             else:
                 h = h_x + z_exp
                 h = h + a_emb
