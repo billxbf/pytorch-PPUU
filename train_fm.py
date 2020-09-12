@@ -33,6 +33,7 @@ parser.add_argument('-beta', type=float, default=0.0, help='coefficient for KL t
 parser.add_argument('-ploss', type=str, default='hinge')
 parser.add_argument('-z_dropout', type=float, default=0.0, help='set z=0 with this probability')
 parser.add_argument('-dropout', type=float, default=0.0, help='regular dropout')
+parser.add_argument('-reg', type=float, default=0.0, help='l2 regularization')
 parser.add_argument('-nz', type=int, default=32)
 parser.add_argument('-lrt', type=float, default=0.0001)
 parser.add_argument('-grad_clip', type=float, default=5.0)
@@ -104,7 +105,7 @@ if os.path.isfile(mfile):
     checkpoint = torch.load(mfile)
     model = checkpoint['model']
     model.cuda()
-    optimizer = optim.Adam(model.parameters(), opt.lrt)
+    optimizer = optim.Adam(model.parameters(), opt.lrt, weight_decay=opt.reg)
     optimizer.load_state_dict(checkpoint['optimizer'])
     n_iter = checkpoint['n_iter']
     utils.log(opt.model_file + '.log', '[resuming from checkpoint]')
@@ -196,6 +197,8 @@ def train(nbatches, npred):
         if loss_c is not None:
             total_loss_c += loss_c.item()
         del inputs, actions, targets
+
+        print(utils.format_losses(loss_i.item(), loss_s.item(), loss_p.item(), split='train'))
 
     total_loss_i /= nbatches
     total_loss_s /= nbatches
