@@ -235,7 +235,7 @@ class decoder(nn.Module):
             h = h.view(bsize, self.feature_maps[-1], self.opt.h_height, self.opt.h_width)
             h_reduced = self.h_reducer(h).view(bsize, -1)
             pred_state = self.s_predictor(h_reduced)
-        
+
         pred_image = self.f_decoder(h)
         pred_image = pred_image[:, :, :self.opt.height, :self.opt.width].clone()
         pred_image = pred_image.view(bsize, 1, self.n_channels*self.n_out, self.opt.height, self.opt.width)
