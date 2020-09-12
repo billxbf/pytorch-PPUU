@@ -609,7 +609,7 @@ class FwdCNN_VAE(nn.Module):
                 nn.LeakyReLU(0.2, inplace=True),
                 nn.Linear(self.opt.nfeature, self.output_a_size)
             )
-            #self.u_network = u_network(opt)
+            self.u_network = u_network(opt)
         else:
             print('[initializing encoder and decoder with: {}]'.format(mfile))
             self.mfile = mfile
@@ -746,7 +746,7 @@ class FwdCNN_VAE(nn.Module):
             h_x = h_x.view(bsize, -1, self.opt.h_height, self.opt.h_width)
             a_emb = self.a_encoder(actions[:, t]).view(z_exp.size())
             if hasattr(self.opt, 'concat') and (self.opt.concat==3 or self.opt.concat==4):
-                h = torch.cat([h_x.copy(), z_exp], dim=1)
+                h = torch.cat([h_x, z_exp], dim=1)
                 h = torch.cat([h, a_emb], dim=1)
                 h = h_x + self.u_network(h)
             else:
