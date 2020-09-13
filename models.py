@@ -149,14 +149,14 @@ class decoder(nn.Module):
                 nn.ConvTranspose2d(self.feature_maps[0], self.n_out*self.n_channels, (2, 2), 2, (0, 1))
             )
 
-            # self.h_reducer = nn.Sequential(
-            #     nn.Conv2d(self.feature_maps[2], self.feature_maps[2], 4, 2, 1),
-            #     nn.Dropout2d(p=opt.dropout, inplace=True),
-            #     nn.LeakyReLU(0.2, inplace=True),
-            #     nn.Conv2d(self.feature_maps[2], self.feature_maps[2], (4, 1), (2, 1), 0),
-            #     nn.Dropout2d(p=opt.dropout, inplace=True),
-            #     nn.LeakyReLU(0.2, inplace=True)
-            # )
+            self.h_reducer = nn.Sequential(
+                nn.Conv2d(self.feature_maps[2], self.feature_maps[2], 4, 2, 1),
+                nn.Dropout2d(p=opt.dropout, inplace=True),
+                nn.LeakyReLU(0.2, inplace=True),
+                nn.Conv2d(self.feature_maps[2], self.feature_maps[2], (4, 1), (2, 1), 0),
+                nn.Dropout2d(p=opt.dropout, inplace=True),
+                nn.LeakyReLU(0.2, inplace=True)
+            )
 
         elif self.opt.layers == 4:
             assert(opt.nfeature % 8 == 0)
@@ -184,7 +184,7 @@ class decoder(nn.Module):
         n_hidden = self.feature_maps[-1]
 
         self.s_predictor = nn.Sequential(
-            nn.Linear(opt.hidden_size, n_hidden),
+            nn.Linear(2*n_hidden, n_hidden),
             nn.Dropout(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
             nn.Linear(n_hidden, n_hidden),
@@ -196,7 +196,8 @@ class decoder(nn.Module):
     def forward(self, h):
         bsize = h.size(0)
         h = h.view(bsize, self.feature_maps[-1], self.opt.h_height, self.opt.h_width)
-        pred_state = self.s_predictor(h.view(bsize, -1))
+        h_reduced = self.h_reducer(h).view(bsize, -1)
+        pred_state = self.s_predictor(h_reduced)
         pred_image = self.f_decoder(h)
         pred_image = pred_image[:, :, :self.opt.height, :self.opt.width].clone()
         pred_image = pred_image.view(bsize, 1, self.n_channels*self.n_out, self.opt.height, self.opt.width)
