@@ -93,22 +93,27 @@ class u_network(nn.Module):
     def __init__(self, opt):
         super(u_network, self).__init__()
         self.opt = opt
+
+        if hasattr(self.opt, 'concat') and self.opt.concat == 1:
+            self.nfeature = 3 * self.opt.nfeature
+        else:
+            self.nfeature = self.opt.nfeature
         self.encoder = nn.Sequential(
-            nn.Conv2d(self.opt.nfeature, self.opt.nfeature, 4, 2, 1),
+            nn.Conv2d(self.nfeature, self.nfeature, 4, 2, 1),
             nn.Dropout2d(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Conv2d(self.opt.nfeature, self.opt.nfeature, (4, 1), 2, 1)
+            nn.Conv2d(self.nfeature, self.nfeature, (4, 1), 2, 1)
         )
 
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(self.opt.nfeature, self.opt.nfeature, (4, 1), 2, 1),
+            nn.ConvTranspose2d(self.nfeature, self.nfeature, (4, 1), 2, 1),
             nn.Dropout2d(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.ConvTranspose2d(self.opt.nfeature, self.opt.nfeature, (4, 3), 2, 0)
+            nn.ConvTranspose2d(self.nfeature, self.nfeature, (4, 3), 2, 0)
         )
 
         assert(self.opt.layers == 3) # hardcoded sizes
-        self.hidden_size = self.opt.nfeature*3*2
+        self.hidden_size = self.nfeature*3*2
         self.fc = nn.Sequential(
             nn.Linear(self.hidden_size, self.hidden_size),
             nn.Dropout(p=opt.dropout, inplace=True),
@@ -136,9 +141,15 @@ class decoder(nn.Module):
             self.n_channels = 4
             if hasattr(self.opt, "use_offroad_map") and self.opt.use_offroad_map:
                 self.n_channels = 5
+
+        if hasattr(self.opt, 'concat') and self.opt.concat == 1:
+            self.nfeature = 3 * self.opt.nfeature
+        else:
+            self.nfeature = self.opt.nfeature
+
         if self.opt.layers == 3:
             assert(opt.nfeature % 4 == 0)
-            self.feature_maps = [int(opt.nfeature/4), int(opt.nfeature/2), opt.nfeature]
+            self.feature_maps = [int(self.nfeature/4), int(self.nfeature/2), self.nfeature]
             self.f_decoder = nn.Sequential(
                 nn.ConvTranspose2d(self.feature_maps[2], self.feature_maps[1], (4, 4), 2, 1),
                 nn.Dropout2d(p=opt.dropout, inplace=True),
@@ -692,10 +703,16 @@ class FwdCNN_VAE(nn.Module):
             z_list.append(z)
             z_exp = self.z_expander(z).view(bsize, self.opt.nfeature, self.opt.h_height, self.opt.h_width)
             h_x = h_x.view(bsize, self.opt.nfeature, self.opt.h_height, self.opt.h_width)
-            h = h_x + z_exp
-            a_emb = self.a_encoder(actions[:, t]).view(h.size())
-            h = h + a_emb
-            h = h + self.u_network(h)
+            a_emb = self.a_encoder(actions[:, t]).view(h_x.size())
+            if hasattr(self.opt, 'concat') and self.opt.concat==1:
+                h = torch.cat([h_x, z_exp], dim=1)
+                h = torch.cat([h, a_emb], dim=1)
+                h = h + self.u_network(h)
+            else:
+                h = h_x + z_exp
+                h = h + a_emb
+                h = h + self.u_network(h)
+
             pred_image, pred_state = self.decoder(h)
             if sampling is not None:
                 pred_image.detach()
