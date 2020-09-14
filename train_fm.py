@@ -124,10 +124,10 @@ else:
     elif opt.model == 'fwd-cnn-vae-fp':
         # stochastic VAE model
         model = models.FwdCNN_VAE(opt, mfile=prev_model)
-    optimizer = optim.Adam(model.parameters(), opt.lrt)
+    optimizer = optim.Adam(model.parameters(), opt.lrt, weight_decay=opt.reg)
     n_iter = 0
 
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100000/opt.epoch_size, gamma=0.5, weight_decay=opt.reg)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=100000/opt.epoch_size, gamma=0.5)
 
 stats = torch.load(opt.dataset+'data_stats.pth')
 model.stats = stats  # used by planning.py/compute_uncertainty_batch
