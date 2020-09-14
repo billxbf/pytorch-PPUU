@@ -98,7 +98,7 @@ class u_network(nn.Module):
             self.nfeature = 3 * self.opt.nfeature
         else:
             self.nfeature = self.opt.nfeature
-        self.out_nfeatrue = self.opt.nfeature
+        self.out_nfeatrue = self.nfeature
         self.encoder = nn.Sequential(
             nn.Conv2d(self.nfeature, self.nfeature, 4, 2, 1),
             nn.Dropout2d(p=opt.dropout, inplace=True),
@@ -146,10 +146,13 @@ class decoder(nn.Module):
                 self.n_channels = 5
 
         self.nfeature = self.opt.nfeature
+        if hasattr(self.opt,'concat') and self.opt.concat==1:
+            self.feature_maps = [int(self.nfeature / 4), int(self.nfeature / 2), self.nfeature*3]
+        else:
+            self.feature_maps = [int(self.nfeature / 4), int(self.nfeature / 2), self.nfeature]
 
         if self.opt.layers == 3:
             assert(opt.nfeature % 4 == 0)
-            self.feature_maps = [int(self.nfeature/4), int(self.nfeature/2), self.nfeature]
             self.f_decoder = nn.Sequential(
                 nn.ConvTranspose2d(self.feature_maps[2], self.feature_maps[1], (4, 4), 2, 1),
                 nn.Dropout2d(p=opt.dropout, inplace=True),
@@ -707,7 +710,7 @@ class FwdCNN_VAE(nn.Module):
             if hasattr(self.opt, 'concat') and self.opt.concat==1:
                 h = torch.cat([h_x, z_exp], dim=1)
                 h = torch.cat([h, a_emb], dim=1)
-                h = h_x + self.u_network(h)
+                h = h + self.u_network(h)
             else:
                 h = h_x + z_exp
                 h = h + a_emb
