@@ -107,10 +107,10 @@ class u_network(nn.Module):
         )
 
         self.decoder = nn.Sequential(
-            nn.ConvTranspose2d(self.nfeature, self.nfeature, (4, 1), 2, 1),
+            nn.ConvTranspose2d(self.out_nfeatrue, self.out_nfeatrue, (4, 1), 2, 1),
             nn.Dropout2d(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.ConvTranspose2d(self.nfeature, self.nfeature, (4, 3), 2, 0)
+            nn.ConvTranspose2d(self.out_nfeatrue, self.out_nfeatrue, (4, 3), 2, 0)
         )
 
         assert(self.opt.layers == 3) # hardcoded sizes
@@ -126,7 +126,8 @@ class u_network(nn.Module):
     def forward(self, h):
         h1 = self.encoder(h)
         h2 = self.fc(h1.view(-1, self.hidden_size))
-        h2 = h2.view(h1.size())
+        out_size = h1.size()
+        h2 = h2.view(out_size[0], self.out_hidden_size, out_size[2], out_size[3])
         h3 = self.decoder(h2)
         return h3
 
