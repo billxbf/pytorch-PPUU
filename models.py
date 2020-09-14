@@ -98,6 +98,7 @@ class u_network(nn.Module):
             self.nfeature = 3 * self.opt.nfeature
         else:
             self.nfeature = self.opt.nfeature
+        self.out_nfeatrue = self.opt.nfeature
         self.encoder = nn.Sequential(
             nn.Conv2d(self.nfeature, self.nfeature, 4, 2, 1),
             nn.Dropout2d(p=opt.dropout, inplace=True),
@@ -114,11 +115,12 @@ class u_network(nn.Module):
 
         assert(self.opt.layers == 3) # hardcoded sizes
         self.hidden_size = self.nfeature*3*2
+        self.out_hidden_size = self.out_nfeatrue*3*2
         self.fc = nn.Sequential(
             nn.Linear(self.hidden_size, self.hidden_size),
             nn.Dropout(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(self.hidden_size, self.hidden_size)
+            nn.Linear(self.hidden_size, self.out_hidden_size)
         )
 
     def forward(self, h):
@@ -142,10 +144,7 @@ class decoder(nn.Module):
             if hasattr(self.opt, "use_offroad_map") and self.opt.use_offroad_map:
                 self.n_channels = 5
 
-        if hasattr(self.opt, 'concat') and self.opt.concat == 1:
-            self.nfeature = 3 * self.opt.nfeature
-        else:
-            self.nfeature = self.opt.nfeature
+        self.nfeature = self.opt.nfeature
 
         if self.opt.layers == 3:
             assert(opt.nfeature % 4 == 0)
@@ -707,7 +706,7 @@ class FwdCNN_VAE(nn.Module):
             if hasattr(self.opt, 'concat') and self.opt.concat==1:
                 h = torch.cat([h_x, z_exp], dim=1)
                 h = torch.cat([h, a_emb], dim=1)
-                h = h + self.u_network(h)
+                h = h_x + self.u_network(h)
             else:
                 h = h_x + z_exp
                 h = h + a_emb
