@@ -2,7 +2,7 @@ import sys
 import numpy, random, pdb, math, pickle, glob, time, os, re
 import torch
 from matplotlib.colors import rgb_to_hsv
-
+import matplotlib.pyplot as plt
 
 class DataLoader:
     def __init__(self, fname, opt, dataset='simulator', single_shard=False, use_colored_lane=False,
@@ -23,7 +23,7 @@ class DataLoader:
             data_files = [f'{next(os.walk(data_dir))[1][0]}.txt/']
         else:
             data_files = next(os.walk(data_dir))[1]
-
+        data_files.sort()
         self.images = []
         self.actions = []
         self.costs = []
@@ -164,6 +164,7 @@ class DataLoader:
             all_states = torch.cat(all_states, 0)
             self.s_mean = torch.mean(all_states, 0)
             self.s_std = torch.std(all_states, 0)
+            torch.save({'state':all_states}, 'states.pth')
             torch.save({'a_mean': self.a_mean,
                         'a_std': self.a_std,
                         's_mean': self.s_mean,
@@ -172,11 +173,11 @@ class DataLoader:
         car_sizes_path = data_dir + '/car_sizes.pth'
         print(f'[loading car sizes: {car_sizes_path}]')
         self.car_sizes = torch.load(car_sizes_path)
-
+        self.index=0
     # get batch to use for forward modeling
     # a sequence of ncond given states, a sequence of npred actions,
     # and a sequence of npred states to be predicted
-    def get_batch_fm(self, split, npred=-1, cuda=True):
+    def get_batch_fm(self, split, npred=-1, cuda=True, test_data=False):
 
         # Choose the correct device
         device = torch.device('cuda') if cuda else torch.device('cpu')
@@ -199,7 +200,10 @@ class DataLoader:
         nb = 0
         T = self.opt.ncond + npred
         while nb < self.opt.batch_size:
-            s = self.random.choice(indx)
+            if test_data:
+                s = self.index
+            else:
+                s = self.random.choice(indx)
             # min is important since sometimes numbers do not align causing issues in stack operation below
             episode_length = min(self.images[s].size(0), self.states[s].size(0))
             if episode_length >= T:
@@ -220,7 +224,8 @@ class DataLoader:
                 size = self.car_sizes[time_slot][car_id]
                 sizes.append([size[0], size[1]])
                 nb += 1
-
+            if test_data:
+                self.index+=1
         # Pile up stuff
         images = torch.stack(images)
         states = torch.stack(states)
