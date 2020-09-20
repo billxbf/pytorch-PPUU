@@ -167,7 +167,7 @@ class decoder(nn.Module):
                 nn.Conv2d(self.feature_maps[2], self.feature_maps[2], 4, 2, 1),
                 nn.Dropout2d(p=opt.dropout, inplace=True),
                 nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(self.feature_maps[2], self.feature_maps[2], (4, 1), (2, 1), 0),
+                nn.Conv2d(self.feature_maps[2], self.feature_maps[0]//4, (4, 1), (2, 1), 0),
                 nn.Dropout2d(p=opt.dropout, inplace=True),
                 nn.LeakyReLU(0.2, inplace=True)
             )
@@ -194,7 +194,8 @@ class decoder(nn.Module):
                 nn.Dropout2d(p=opt.dropout, inplace=True),
                 nn.LeakyReLU(0.2, inplace=True)
             )
-            n_hidden = self.feature_maps[-1]
+
+        n_hidden=self.feature_maps[0]//4
 
         self.s_predictor = nn.Sequential(
             nn.Linear(2*n_hidden, n_hidden),
@@ -587,7 +588,7 @@ class FwdCNN_VAE(nn.Module):
                 nn.LeakyReLU(0.2, inplace=True),
                 nn.Linear(self.opt.nfeature, self.opt.hidden_size)
             )
-            self.u_network = u_network(opt)
+            # self.u_network = u_network(opt)
         else:
             print('[initializing encoder and decoder with: {}]'.format(mfile))
             self.mfile = mfile
@@ -713,7 +714,7 @@ class FwdCNN_VAE(nn.Module):
             else:
                 h = h_x + z_exp
                 h = h + a_emb
-                h = h + self.u_network(h)
+                # h = h + self.u_network(h)
 
             pred_image, pred_state = self.decoder(h)
             if sampling is not None:
