@@ -164,10 +164,10 @@ class decoder(nn.Module):
             )
 
             self.h_reducer = nn.Sequential(
-                nn.Conv2d(self.feature_maps[2], self.feature_maps[0]//4, 4, 2, 1),
+                nn.Conv2d(self.feature_maps[2], self.feature_maps[0]//8, 4, 2, 1),
                 nn.Dropout2d(p=opt.dropout, inplace=True),
                 nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(self.feature_maps[0]//4, self.feature_maps[0]//4, (4, 1), (2, 1), 0),
+                nn.Conv2d(self.feature_maps[0]//8, self.feature_maps[0]//8, (4, 1), (2, 1), 0),
                 nn.Dropout2d(p=opt.dropout, inplace=True),
                 nn.LeakyReLU(0.2, inplace=True)
             )
@@ -195,7 +195,7 @@ class decoder(nn.Module):
                 nn.LeakyReLU(0.2, inplace=True)
             )
 
-        n_hidden=self.feature_maps[0]//4
+        n_hidden=self.feature_maps[0]//8
 
         self.s_predictor = nn.Sequential(
             nn.Linear(2*n_hidden, n_hidden),
