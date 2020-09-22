@@ -588,7 +588,7 @@ class FwdCNN_VAE(nn.Module):
                 nn.LeakyReLU(0.2, inplace=True),
                 nn.Linear(self.opt.nfeature, self.opt.hidden_size)
             )
-            # self.u_network = u_network(opt)
+            self.u_network = u_network(opt)
         else:
             print('[initializing encoder and decoder with: {}]'.format(mfile))
             self.mfile = mfile
@@ -714,7 +714,7 @@ class FwdCNN_VAE(nn.Module):
             else:
                 h = h_x + z_exp
                 h = h + a_emb
-                # h = h + self.u_network(h)
+                h = h + self.u_network(h)
 
             pred_image, pred_state = self.decoder(h)
             if sampling is not None:
