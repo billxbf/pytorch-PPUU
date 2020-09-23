@@ -71,7 +71,7 @@ if os.path.isfile(opt.model_file + '.model'):
 else:
     model.create_policy_net(opt)
     optimizer = optim.Adam(model.policy_net.parameters(), opt.lrt)  # POLICY optimiser ONLY!
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=25_000/opt.epoch_size, gamma=0.5)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50_000/opt.epoch_size, gamma=0.5)
 
 # data
 opt.dataset = f"traffic-data/state-action-cost-{opt.ksize}-{opt.position_threshold}/data_i80_v0/"
