@@ -1180,7 +1180,7 @@ class Simulator(core.Env):
         phi = 1. / (1. + np.exp(-50 * (phi - soft_threshold)))
         lane_image[:, :, 0] = (d[:, :, 0] * phi) * 0.5 + 0.5
         lane_image[:, :, 1] = (d[:, :, 1] * phi) * 0.5 + 0.5
-        plt.imsave(f"{self.draw_position_threshold}actrajectory.jpg", np.transpose(lane_image, (1, 0, 2)))
+        plt.imsave(f"{self.draw_position_threshold}actrajectory.png", np.transpose(lane_image, (1, 0, 2)))
 
     def _pause(self):
         pause = True
