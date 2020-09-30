@@ -28,12 +28,10 @@ parser.add_argument('-ncond', type=int, default=20, help='number of conditioning
 parser.add_argument('-npred', type=int, default=20, help='number of predictions to make with unrolled fwd model')
 parser.add_argument('-batch_size', type=int, default=8)
 parser.add_argument('-nfeature', type=int, default=256)
-parser.add_argument('-n_hidden', type=int, default=256)
 parser.add_argument('-beta', type=float, default=0.0, help='coefficient for KL term in VAE')
 parser.add_argument('-ploss', type=str, default='hinge')
 parser.add_argument('-z_dropout', type=float, default=0.0, help='set z=0 with this probability')
 parser.add_argument('-dropout', type=float, default=0.0, help='regular dropout')
-parser.add_argument('-reg', type=float, default=0.0, help='l2 regularization')
 parser.add_argument('-nz', type=int, default=32)
 parser.add_argument('-lrt', type=float, default=0.0001)
 parser.add_argument('-grad_clip', type=float, default=5.0)
@@ -49,7 +47,6 @@ parser.add_argument('-use_colored_lane', type=bool, default=False, help='use col
 parser.add_argument('-use_offroad_map', type=bool, default=False, help='use offroad maps for forward model')
 parser.add_argument('-ksize', type=int, default=7, help='kernel size for blurring')
 parser.add_argument('-position_threshold', type=int, default=1, help='threshold for position cost')
-parser.add_argument('-concat', type=int, default=0)
 opt = parser.parse_args()
 
 os.system('mkdir -p ' + opt.model_dir)
@@ -77,8 +74,6 @@ if opt.grad_clip != -1:
 
 opt.model_file += f'-warmstart={opt.warmstart}'
 opt.model_file += f'-seed={opt.seed}'
-opt.model_file += f'-reg={opt.reg}'
-opt.model_file += f'-concat={opt.concat}'
 if opt.use_colored_lane:
     opt.model_file += f'-ksize={opt.ksize}'
     opt.model_file += f'-pt={opt.position_threshold}'
@@ -124,7 +119,7 @@ else:
     elif opt.model == 'fwd-cnn-vae-fp':
         # stochastic VAE model
         model = models.FwdCNN_VAE(opt, mfile=prev_model)
-    optimizer = optim.Adam(model.parameters(), opt.lrt, weight_decay=opt.reg)
+    optimizer = optim.Adam(model.parameters(), opt.lrt)
     n_iter = 0
 
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=350000/opt.epoch_size, gamma=0.1)
@@ -145,11 +140,9 @@ def compute_loss(targets, predictions, reduction='mean'):
     target_states = targets[1]
     pred_images = predictions[0]
     pred_states = predictions[1]
-    loss_h = None
-    loss_c = None
     loss_i = F.mse_loss(pred_images, target_images, reduction=reduction)
     loss_s = F.mse_loss(pred_states, target_states, reduction=reduction)
-    return loss_i, loss_s, loss_h, loss_c
+    return loss_i, loss_s
 
 
 def expand(x, actions, nrep):
@@ -167,21 +160,20 @@ def expand(x, actions, nrep):
     else:
         return [images_, states_]
 
+
+
+
+
 def train(nbatches, npred):
     model.train()
-    total_loss_i, total_loss_s, total_loss_p, total_loss_h, total_loss_c = 0, 0, 0, 0, 0
+    total_loss_i, total_loss_s, total_loss_p = 0, 0, 0
     for i in range(nbatches):
         optimizer.zero_grad()
-        inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('train', npred)
+        inputs, actions, targets, _, _ = dataloader.get_batch_fm('train', npred)
         pred, loss_target = model(inputs[: -1], actions, targets, z_dropout=opt.z_dropout)
         loss_p = loss_target[0]
-        loss_i, loss_s, loss_h, loss_c = compute_loss(targets, pred)
+        loss_i, loss_s = compute_loss(targets, pred)
         loss = loss_i + loss_s + opt.beta*loss_p
-
-        if loss_h is not None:
-            loss += loss_h
-        if loss_c is not None:
-            loss += loss_c
 
         # VAEs get NaN loss sometimes, so check for it
         if not math.isnan(loss.item()):
@@ -193,51 +185,34 @@ def train(nbatches, npred):
         total_loss_i += loss_i.item()
         total_loss_s += loss_s.item()
         total_loss_p += loss_p.item()
-        if loss_h is not None:
-            total_loss_h += loss_h.item()
-        if loss_c is not None:
-            total_loss_c += loss_c.item()
         del inputs, actions, targets
-
-        print(utils.format_losses(loss_i.item(), loss_s.item(), loss_p.item(), split='train'))
 
     total_loss_i /= nbatches
     total_loss_s /= nbatches
     total_loss_p /= nbatches
-    total_loss_h /= nbatches
-    total_loss_c /= nbatches
-    return total_loss_i, total_loss_s, total_loss_p, total_loss_h, total_loss_c
+    return total_loss_i, total_loss_s, total_loss_p
 
 
 def test(nbatches):
     model.eval()
-    total_loss_i, total_loss_s, total_loss_p, total_loss_h, total_loss_c = 0, 0, 0, 0, 0
+    total_loss_i, total_loss_s, total_loss_p = 0, 0, 0
     for i in range(nbatches):
-        inputs, actions, targets, _, car_sizes = dataloader.get_batch_fm('valid')
+        inputs, actions, targets, _, _ = dataloader.get_batch_fm('valid')
+
         pred, loss_target = model(inputs[: -1], actions, targets, z_dropout=opt.z_dropout)
         loss_p = loss_target[0]
-        loss_i, loss_s, loss_h, loss_c = compute_loss(targets, pred)
+        loss_i, loss_s = compute_loss(targets, pred)
         loss = loss_i + loss_s + opt.beta*loss_p
-        if loss_h is not None:
-            loss += loss_h
-        if loss_c is not None:
-            loss += loss_c
 
         total_loss_i += loss_i.item()
         total_loss_s += loss_s.item()
         total_loss_p += loss_p.item()
-        if loss_h is not None:
-            total_loss_h += loss_h.item()
-        if loss_c is not None:
-            total_loss_c += loss_c.item()
         del inputs, actions, targets
 
     total_loss_i /= nbatches
     total_loss_s /= nbatches
     total_loss_p /= nbatches
-    total_loss_h /= nbatches
-    total_loss_c /= nbatches
-    return total_loss_i, total_loss_s, total_loss_p, total_loss_h, total_loss_c
+    return total_loss_i, total_loss_s, total_loss_p
 
 writer = utils.create_tensorboard_writer(opt)
 

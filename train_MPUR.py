@@ -91,7 +91,7 @@ for k, v in stats.items():
     if isinstance(v, torch.Tensor):
         model.policy_net.stats_d[k] = v.to(opt.device)
 
-if opt.learned_cost!= '':
+if opt.learned_cost!= 'False':
     print('[loading cost regressor]')
     cost_name=''
     value = ['1.0', '0.5', '0.1', '0.0']

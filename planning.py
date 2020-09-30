@@ -51,13 +51,9 @@ def compute_uncertainty_batch(model, input_images, input_states, actions, target
 
     model.train()  # turn on dropout, for uncertainty estimation
     pred_images, pred_states = [], []
-    hidden = None
     for t in range(npred):
         z = Z_rep[:, t]
-        if hasattr(model.opt, 'output_h') and model.opt.output_h:
-            pred_image, pred_state, _ = model.forward_single_step(input_images, input_states, actions[:, t], z)
-        else:
-            pred_image, pred_state = model.forward_single_step(input_images, input_states, actions[:, t], z)
+        pred_image, pred_state = model.forward_single_step(input_images, input_states, actions[:, t], z)
         if detach:
             pred_image.detach_()
             pred_state.detach_()
@@ -76,6 +72,8 @@ def compute_uncertainty_batch(model, input_images, input_states, actions, target
 
     if model.opt.use_colored_lane:
         n_channels = 4
+        if model.opt.use_offroad_map:
+            n_channels = 5
     else:
         n_channels = 3
 
@@ -201,6 +199,8 @@ def plan_actions_backprop(model, input_images, input_states, car_sizes, npred=50
 
     if model.opt.use_colored_lane:
         model.encoder.n_channels = 4
+        if model.opt.use_offroad_map:
+            model.encoder.n_channels = 5
     else:
         model.encoder.n_channels = 3
 
@@ -296,7 +296,7 @@ def plan_actions_backprop(model, input_images, input_states, car_sizes, npred=50
     a = actions.data.view(npred, 2)
 
     if normalize:
-        a.clamp_(-3, 3)
+        # a.clamp_(-3, 3)
         a *= model.stats['a_std'].view(1, 2).expand(a.size()).cuda()
         a += model.stats['a_mean'].view(1, 2).expand(a.size()).cuda()
     return a.cpu().numpy()
