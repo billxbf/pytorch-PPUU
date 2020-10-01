@@ -109,7 +109,6 @@ def offroad_cost(images, proximity_mask):
 def proximity_cost(images, states, car_size=(6.4, 14.3), green_channel=1, unnormalize=False, s_mean=None, s_std=None):
     SCALE = 0.25
     safe_factor = 1.5
-    max_acceleration = 3.0
     bsize, npred, nchannels, crop_h, crop_w = images.size()
     images = images.view(bsize * npred, nchannels, crop_h, crop_w)
     states = states.view(bsize * npred, 4).clone()
@@ -123,11 +122,13 @@ def proximity_cost(images, states, car_size=(6.4, 14.3), green_channel=1, unnorm
     width = width * SCALE * (0.3048 * 24 / 3.7)  # pixels
     length = length * SCALE * (0.3048 * 24 / 3.7)  # pixels 
 
-    safe_distance = torch.abs(speed) * safe_factor + (1 * 24 / 3.7) * SCALE  # plus one metre (TODO change)
+    alpha = 1 * SCALE * (24 / 3.7)  # 1 m overlap collision
+
+    safe_distance = torch.abs(speed) * safe_factor + alpha  # plus one metre (TODO change)
 
     # Compute x/y minimum distance to other vehicles (pixel version)
     # Account for 1 metre overlap (low data accuracy)
-    alpha = 1 * SCALE * (24 / 3.7)  # 1 m overlap collision
+
     # Create separable proximity mask
 
     max_x = torch.ceil((crop_h - torch.clamp(length - alpha, min=0)) / 2)
@@ -136,10 +137,9 @@ def proximity_cost(images, states, car_size=(6.4, 14.3), green_channel=1, unnorm
     max_y = max_y.view(bsize, 1).expand(bsize, npred).contiguous().view(bsize * npred).cuda()
 
     min_x = torch.clamp(max_x - safe_distance, min=0)
-    min_y = torch.ceil(crop_w / 2 - width - (1 * 24 / 3.7) * SCALE)  # assumes other._width / 2 = self._width / 2 plus 1m
+    min_y = torch.ceil(crop_w / 2 - width - alpha)  # assumes other._width / 2 = self._width / 2 plus 1m
     min_y = min_y.view(bsize, 1).expand(bsize, npred).contiguous().view(bsize * npred).cuda()
 
-    max_x -= speed.cuda()/2*(max_acceleration*SCALE)
     # transform type
     max_x = max_x.float()
     max_y = max_y.float()
