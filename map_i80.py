@@ -62,6 +62,7 @@ class I80Car(Car):
         self._ego_car_image = None
         self._lanes_image = list()
         self._offroads_image = list()
+        self._speeds_image = list()
         self._actions = list()
         self._passing = False
         self._actions = list()
@@ -405,7 +406,8 @@ class I80(Simulator):
                 if self.state_image and self.store:
                     file_name = os.path.join(self.data_dir, self.DUMP_NAME, os.path.basename(self._t_slot))
                     print(f'[dumping {v} in {file_name}]')
-                    v.dump_state_image(file_name, 'tensor', colored_lane=self.colored_lane, offroad_map=self.offroad_map)
+                    v.dump_state_image(file_name, 'tensor', colored_lane=self.colored_lane, offroad_map=self.offroad_map,
+                                       speed_map=self.speed_map)
                 self.vehicles.remove(v)
             else:
                 # Insort it in my vehicle list
@@ -481,14 +483,16 @@ class I80(Simulator):
                 return_reward=self.return_reward,
                 gamma=self.gamma,
                 colored_lane=self.colored_lane,
-                offroad_map=self.offroad_map
+                offroad_map=self.offroad_map,
+                speed_map=self.speed_map
             )
             if return_: return return_
 
         # return observation, reward, done, info
         return None, None, self.done, None
 
-    def _draw_lanes(self, surface, mode='human', offset=0, colored_lane=None, offroad_map=None, offroad_surface=None):
+    def _draw_lanes(self, surface, mode='human', offset=0, colored_lane=None, offroad_map=None, offroad_surface=None,
+                    speed_map=None, speed_surface=None):
 
         slope = 0.035
 
@@ -527,8 +531,11 @@ class I80(Simulator):
                 if offroad_map:
                     offroad = pygame.image.load(offroad_map)
                     offroad_surface.blit(offroad,(0,0))
+                if speed_map:
+                    speed = pygame.image.load(speed_map)
+                    speed_surface.blit(speed,(0,0))
 
-            # pygame.image.save(s, "i80-real.png")
+            #pygame.image.save(surface, "i80-real.png")
 
         if mode == 'machine':
             if colored_lane is None:
@@ -579,5 +586,11 @@ class I80(Simulator):
                     offroad = pygame.image.load(offroad_map)
                     offroad_surface.blit(offroad,(m + 0, m + lanes[0]['min'] - 35))
                     self._offroad_surfaces[mode] = offroad_surface.copy()
-            # pygame.image.save(surface, "i80-machine-lane.png")
-            # pygame.image.save(offroad_surface, "i80-machine-offroad.png")
+                if speed_map:
+                    speed = pygame.image.load(speed_map)
+                    speed_surface.blit(speed,(m + 0, m + lanes[0]['min'] - 35))
+                    self._speed_surfaces[mode] = speed_surface.copy()
+
+            # pygame.image.save(surface, "i80-road.png")
+            # pygame.image.save(offroad_surface, "i80-offroad.png")
+            # pygame.image.save(speed_surface, "i80-speed.png")

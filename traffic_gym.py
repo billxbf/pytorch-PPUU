@@ -105,6 +105,7 @@ class Car:
         self._ego_car_image = None
         self._lanes_image = list()
         self._offroads_image = list()
+        self._speeds_image = list()
         self._actions = list()
         self._safe_factor = random.gauss(1.5, 0)  # 0.9 Germany, 2 safe
         self.pid_k1 = np.random.normal(1e-4, 1e-5)
@@ -552,8 +553,11 @@ class Car:
             self._lanes_image.append(self._get_observation_image(*object_))
         elif object_name == 'offroad_image':
             self._offroads_image.append(self._get_observation_image(*object_))
+        elif object_name == 'speed_image':
+            self._speeds_image.append(self._get_observation_image(*object_))
 
-    def get_last(self, n, done, norm_state=False, return_reward=False, gamma=0.99, colored_lane=None, offroad_map=None):
+    def get_last(self, n, done, norm_state=False, return_reward=False, gamma=0.99, colored_lane=None, offroad_map=None,
+                 speed_map=None):
         if len(self._states_image) < n: return None  # no enough samples
         # n × (state_image, lane_cost, proximity_cost, frame) ->
         # -> (n × state_image, n × lane_cost, n × proximity_cost, n × frame)
@@ -574,6 +578,13 @@ class Car:
             state_images = torch.cat([state_images, offroad_images[:, 2, :, :].unsqueeze(dim=1)],
                                      dim=1)  # Only use green channel
             del offroad_images
+        if speed_map is not None:
+            transpose = list(zip(*self._speeds_image))
+            speed_images = transpose[0]
+            speed_images = torch.stack(speed_images).permute(0, 3, 1, 2)[-n:]
+            state_images = torch.cat([state_images, speed_images[:, 2, :, :].unsqueeze(dim=1)],
+                                     dim=1)  # Only use green channel
+            del speed_images
         ego_car_new_shape = list(state_images.shape)
         ego_car_new_shape[1] = 1
         ego_car_channel = self._ego_car_image[:, :, 2][None, None, :].expand(ego_car_new_shape)
@@ -622,7 +633,7 @@ class Car:
 
         return observation, cost, self.off_screen or done, self
 
-    def dump_state_image(self, save_dir='scratch/', mode='img', colored_lane=None, offroad_map=None):
+    def dump_state_image(self, save_dir='scratch/', mode='img', colored_lane=None, offroad_map=None, speed_map=None):
         os.system('mkdir -p ' + save_dir)
         transpose = list(zip(*self._states_image))
         if colored_lane is not None:
@@ -631,6 +642,9 @@ class Car:
         if offroad_map is not None:
             offroads_transpose = list(zip(*self._offroads_image))
             offroads = offroads_transpose[0]
+        if speed_map is not None:
+            speeds_transpose = list(zip(*self._speeds_image))
+            speeds = speeds_transpose[0]
         if len(transpose) == 0:
             print(f'failure, {save_dir}')
             # print(transpose)
@@ -648,10 +662,13 @@ class Car:
             im_pth = torch.stack(im).permute(0, 3, 1, 2)
             lane_pth = None
             offroad_pth = None
+            speed_pth = None
             if colored_lane is not None:
                 lane_pth = torch.stack(lanes).permute(0, 3, 1, 2)
             if offroad_map is not None:
                 offroad_pth = torch.stack(offroads).permute(0, 3, 1, 2)
+            if speed_map is not None:
+                speed_pth = torch.stack(speeds).permute(0, 3, 1, 2)
             with open(os.path.join(save_dir, f'car{self.id}.pkl'), 'wb') as f:
                 pickle.dump({
                     'images': im_pth,
@@ -664,7 +681,8 @@ class Car:
                     'frames': frames,
                     'ego_car': self._ego_car_image.permute(2, 0, 1),
                     'lane_images': lane_pth,
-                    'offroad_images': offroad_pth
+                    'offroad_images': offroad_pth,
+                    'speed_images': speed_pth
                 }, f)
         elif mode == 'img':
             save_dir = os.path.join(save_dir, str(self.id))
@@ -732,6 +750,7 @@ class Simulator(core.Env):
         self.policy_network = None
         self._lane_surfaces = dict()
         self._offroad_surfaces = dict()
+        self._speed_surfaces = dict()
         self.time_counter = None
         self.controlled_car = None
         self.nb_states = nb_states
@@ -1046,14 +1065,19 @@ class Simulator(core.Env):
             try:
                 lane_surface = self._lane_surfaces[mode]
                 offroad_surface = self._offroad_surfaces[mode]
+                speed_surface = self._speed_surfaces[mode]
 
             except KeyError:
                 lane_surface = pygame.Surface(machine_screen_size)
                 offroad_surface = None
+                speed_surface = None
                 if self.offroad_map is not None:
                     offroad_surface = pygame.Surface(machine_screen_size)
+                if self.speed_map is not None:
+                    speed_surface = pygame.Surface(machine_screen_size)
                 self._draw_lanes(lane_surface, mode=mode, offset=max_extension, colored_lane=self.colored_lane,
-                                 offroad_map=self.offroad_map, offroad_surface=offroad_surface)
+                                 offroad_map=self.offroad_map, offroad_surface=offroad_surface, speed_map=self.speed_map,
+                                 speed_surface=speed_surface)
 
             # # draw vehicles
             # for v in self.vehicles:
@@ -1079,6 +1103,9 @@ class Simulator(core.Env):
                         if offroad_surface is not None:
                             v.store('offroad_image', (max_extension, offroad_surface, width_height, scale, self.frame,
                                                    self.colored_lane))
+                        if speed_surface is not None:
+                            v.store('speed_image', (max_extension, speed_surface, width_height, scale, self.frame,
+                                                      self.colored_lane))
                     # Empty ego-surface
                     ego_surface.fill((0, 0, 0))
                     # Draw myself blue on the ego_surface
@@ -1099,7 +1126,8 @@ class Simulator(core.Env):
             # pygame.image.save(vehicle_surface, "vehicle_surface.png")
             # self._pause()
 
-    def _draw_lanes(self, surface, mode='human', offset=0, colored_lane=None, offroad_map=None, offroad_surface=None):
+    def _draw_lanes(self, surface, mode='human', offset=0, colored_lane=None, offroad_map=None, offroad_surface=None,
+                    speed_map=None, speed_surface=None):
         draw_line = pygame.draw.line
         if mode == 'human':
             lanes = self.lanes
@@ -1127,8 +1155,8 @@ class Simulator(core.Env):
         pad = 0
         if self.trajectory_image is None:
             self.trajectory_image = np.zeros((self.screen_size[0], self.screen_size[1], 3))
-        if self.draw_speed_map:
-            self.speed_map = np.zeros((self.screen_size[0], self.screen_size[1], 1))
+            if self.draw_speed_map and self.speed_map is None:
+                self.speed_map = np.zeros((self.screen_size[0], self.screen_size[1], 1))
         trajectory = v._trajectory
         # remove nan
         real_len = 0
@@ -1136,41 +1164,59 @@ class Simulator(core.Env):
             if not math.isnan(trajectory[i, 0]) and not math.isnan(trajectory[i, 1]):
                 real_len = i + 1
                 break
+
         # remove waittime
         points = []
+        speeds = []
+        d = trajectory[1, :] - trajectory[0, :]
+        init_speed = np.linalg.norm(d)
         points.append(trajectory[0, :])
-        for i in range(real_len):
+        speeds.append(init_speed)
+        for i in range(1, real_len):
             if math.sqrt(pow(trajectory[i, 0] - points[-1][0], 2) + pow(trajectory[i, 1] - points[-1][1], 2)) > 5:
                 points.append(trajectory[i, :])
+                d = trajectory[i, :] - trajectory[i-1, :]
+                speed = np.linalg.norm(d)
+                speeds.append(speed)
+
         points = np.array(points)
         curve = bezier.Curve(points.T, degree=len(points) - 1)
         s_vals = np.linspace(0.0, 1.0, 5 * (len(points) - 1))
-        points = curve.evaluate_multi(s_vals).T
+        interpolated_points = curve.evaluate_multi(s_vals).T
 
-        for i in range(len(points) - 1):
-            x, y = points[i, 0], points[i, 1]
+        points_index = np.array([0, 1, 2])
+        for i in range(len(interpolated_points) - 1):
+            x, y = interpolated_points[i, 0], interpolated_points[i, 1]
             p = (round(x), round(y))
-            d = points[i + 1, :] - points[i, :]
-            # # HSV 2 RGB
-            # rad = math.atan(d[1] / (d[0] + 1e-6))
-            # rad = (rad + math.pi / 2) / math.pi
-            # if d[0] > 0:
-            #     H = rad * 0.5
-            # else:
-            #     H = rad * 0.5 + 0.5
-            # S = 1
-            # V = 1
-            # RGBcolor = hsv_to_rgb((H, S, V))
-
+            d = interpolated_points[i + 1, :] - interpolated_points[i, :]
             d = d / np.linalg.norm(d)
             self.trajectory_image[p[0] - pad:p[0] + pad + 1, p[1] - pad:p[1] + pad + 1, 0] += d[0]
             self.trajectory_image[p[0] - pad:p[0] + pad + 1, p[1] - pad:p[1] + pad + 1, 1] += d[1]
             self.trajectory_image[p[0] - pad:p[0] + pad + 1, p[1] - pad:p[1] + pad + 1, 2] += 1
+            if self.draw_speed_map:
+                distance1 = math.sqrt(pow(points[points_index[0]][0] - x, 2)
+                                      + pow(points[points_index[0]][1] - y, 2))
+                distance2 = math.sqrt(pow(points[points_index[1]][0] - x, 2)
+                                      + pow(points[points_index[1]][1] - y, 2))
+                distance3 = None
+                if points_index[2] < len(points):
+                    distance3 = math.sqrt(pow(points[points_index[2]][0] - x, 2)
+                                          + pow(points[points_index[2]][1] - y, 2))
+                if distance3 is not None and distance1 > distance3:
+                    points_index += 1
+                    distance1 = distance2
+                    distance2 = distance3
+                speed = distance1 / (distance1 + distance2) * speeds[points_index[0]] + distance2 / (
+                        distance1 + distance2) * speeds[points_index[1]]
+                self.speed_map[p[0] - pad:p[0] + pad + 1, p[1] - pad:p[1] + pad + 1] += speed
 
     def get_final_trajectory(self):
         soft_threshold = 0.85
         # lane_image = self.trajectory_image[:, :, 0:3] / np.expand_dims(self.trajectory_image[:, :, 2] + 1e-6, axis=2)
-        lane_image = self.trajectory_image[:, :, 0:3]
+        lane_image = self.trajectory_image
+        if self.draw_speed_map:
+            speed_image = self.speed_map
+            speed_image /= np.expand_dims(self.trajectory_image[:, :, 2] + 1e-6, axis=2)
         lane_image[:, :, 0:2] /= np.expand_dims(self.trajectory_image[:, :, 2] + 1e-6, axis=2)
         lane_image[:, :, 2] = np.min(
             np.stack([lane_image[:, :, 2], np.ones_like(lane_image[:, :, 2]) * self.draw_position_threshold],
@@ -1181,7 +1227,12 @@ class Simulator(core.Env):
         lane_image[:, :, 0] = (d[:, :, 0] * phi) * 0.5 + 0.5
         lane_image[:, :, 1] = (d[:, :, 1] * phi) * 0.5 + 0.5
         plt.imsave(f"{self.draw_position_threshold}actrajectory.png", np.transpose(lane_image, (1, 0, 2)))
-
+        if self.draw_speed_map:
+            max_speed = np.max(speed_image)
+            min_speed = np.min(speed_image)
+            speed_image = (speed_image-min_speed)/(max_speed-min_speed)
+            torch.save(torch.tensor([max_speed,min_speed]),'speed_stats.pth')
+            plt.imsave(f"speed.png", np.repeat(np.transpose(speed_image, (1, 0, 2)), 3, axis=2))
     def _pause(self):
         pause = True
         while pause:

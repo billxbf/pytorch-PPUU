@@ -9,6 +9,7 @@ parser.add_argument('-position_threshold', type=int, default=1, help='position t
 parser.add_argument('-offroad_threshold', type=float, default=0.0, help='offroad threshold')
 parser.add_argument('-smoother_threshold', type=float, default=0.0)
 parser.add_argument('-smoother_kernel', type=int, default=0)
+parser.add_argument('-speed_map', type=bool, default=False)
 opt = parser.parse_args()
 kernel_size = (opt.ksize, opt.ksize)
 trajectory_image = Image.imread(f'{opt.position_threshold}actrajectory.png')
@@ -31,3 +32,10 @@ if opt.offroad_threshold != 0.0:
     Image.imsave(f"{opt.ksize}g{opt.position_threshold}actrajectory_offroad.png", trajectory_image)
 else:
     Image.imsave(f"{opt.ksize}g{opt.position_threshold}actrajectory.png", trajectory_image)
+
+if opt.speed_map:
+    trajectory_image = Image.imread(f'speed.png')
+    trajectory_image[:, :, 0] = cv2.GaussianBlur(trajectory_image[:, :, 0], kernel_size, opt.ksize / 3)
+    trajectory_image[:, :, 1] = cv2.GaussianBlur(trajectory_image[:, :, 1], kernel_size, opt.ksize / 3)
+    trajectory_image[:, :, 2] = cv2.GaussianBlur(trajectory_image[:, :, 2], kernel_size, opt.ksize / 3)
+    Image.imsave(f"{opt.ksize}gspeed.png", trajectory_image)
