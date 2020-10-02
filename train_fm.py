@@ -103,7 +103,7 @@ if os.path.isfile(mfile):
     checkpoint = torch.load(mfile)
     model = checkpoint['model']
     model.cuda()
-    optimizer = optim.Adam(model.parameters(), opt.lrt, weight_decay=opt.reg)
+    optimizer = optim.Adam(model.parameters(), opt.lrt)
     optimizer.load_state_dict(checkpoint['optimizer'])
     n_iter = checkpoint['n_iter']
     utils.log(opt.model_file + '.log', '[resuming from checkpoint]')
@@ -128,7 +128,6 @@ scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=350000/opt.epoc
 
 stats = torch.load(opt.dataset+'data_stats.pth')
 model.stats = stats  # used by planning.py/compute_uncertainty_batch
-
 model.cuda()
 
 

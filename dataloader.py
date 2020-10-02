@@ -145,9 +145,9 @@ class DataLoader:
             perm = rgn.permutation(self.n_episodes)
             n_train = int(math.floor(self.n_episodes * 0.8))
             n_valid = int(math.floor(self.n_episodes * 0.1))
-            self.train_indx = perm[0: n_train]
-            self.valid_indx = perm[n_train: n_train + n_valid]
-            self.test_indx = perm[n_train + n_valid:]
+            self.train_indx = perm[0 : n_train]
+            self.valid_indx = perm[n_train : n_train + n_valid]
+            self.test_indx = perm[n_train + n_valid :]
             torch.save(dict(
                 train_indx=self.train_indx,
                 valid_indx=self.valid_indx,
@@ -177,15 +177,10 @@ class DataLoader:
             all_states = torch.cat(all_states, 0)
             self.s_mean = torch.mean(all_states, 0)
             self.s_std = torch.std(all_states, 0)
-            torch.save({'state':all_states}, 'states.pth')
             torch.save({'a_mean': self.a_mean,
                         'a_std': self.a_std,
                         's_mean': self.s_mean,
                         's_std': self.s_std}, stats_path)
-        if self.use_speed_map:
-            speed_stats_path = 'speed_stats.pth'
-            print(f'[loading speed stats: {speed_stats_path}]')
-            self.speed_stats = torch.load(speed_stats_path)
 
         car_sizes_path = data_dir + '/car_sizes.pth'
         print(f'[loading car sizes: {car_sizes_path}]')
@@ -227,10 +222,10 @@ class DataLoader:
             episode_length = min(self.images[s].size(0), self.states[s].size(0))
             if episode_length >= T:
                 t = self.random.randint(0, episode_length - T)
-                images.append(self.images[s][t: t + T].to(device))
-                actions.append(self.actions[s][t: t + T].to(device))
-                states.append(self.states[s][t: t + T, 0].to(device))  # discard 6 neighbouring cars
-                costs.append(self.costs[s][t: t + T].to(device))
+                images.append(self.images[s][t : t + T].to(device))
+                actions.append(self.actions[s][t : t + T].to(device))
+                states.append(self.states[s][t : t + T, 0].to(device))  # discard 6 neighbouring cars
+                costs.append(self.costs[s][t : t + T].to(device))
                 ids.append(self.ids[s])
                 ego_cars.append(self.ego_car_images[s].to(device))
                 if self.use_colored_lane:
@@ -248,10 +243,10 @@ class DataLoader:
             if test_data:
                 self.index+=1
         # Pile up stuff
-        images = torch.stack(images)
-        states = torch.stack(states)
+        images  = torch.stack(images)
+        states  = torch.stack(states)
         actions = torch.stack(actions)
-        sizes = torch.tensor(sizes)
+        sizes   = torch.tensor(sizes)
         ego_cars = torch.stack(ego_cars)
         if self.use_colored_lane:
             lane_images = torch.stack(lane_images)
@@ -321,11 +316,9 @@ class DataLoader:
 
         return [input_images, input_states, ego_cars], actions, [target_images, target_states, target_costs], ids, sizes
 
-    def normalise_state_image(self, images):
-        images = images.float().div_(255.0)
-        if self.use_speed_map:
-            images[:, :, 5] = self.normalise_speed(images)
-        return images
+    @staticmethod
+    def normalise_state_image(images):
+        return images.float().div_(255.0)
 
     def normalise_state_vector(self, states):
         shape = (1, 1, 4) if states.dim() == 3 else (1, 4)  # dim = 3: state sequence, dim = 2: single state
@@ -338,11 +331,6 @@ class DataLoader:
         actions /= (1e-8 + self.a_std.view(1, 1, 2).expand(actions.size())).to(actions.device)
         return actions
 
-    def normalise_speed(self, speed_images):
-        max_speed = self.speed_stats[0]
-        min_speed = self.speed_stats[1]
-        speed_images = speed_images[:, :, 5]*(max_speed-min_speed)+min_speed
-        return speed_images
 
 if __name__ == '__main__':
     # Create some dummy options
@@ -351,8 +339,6 @@ if __name__ == '__main__':
         batch_size = 4
         npred = 20
         ncond = 10
-
-
     # Instantiate data set object
     d = DataLoader(None, opt=DataSettings, dataset='i80')
     # Retrieve first training batch
