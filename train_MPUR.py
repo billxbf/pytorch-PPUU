@@ -103,7 +103,8 @@ if opt.learned_cost!= 'False':
     model.cost = torch.load(path.join(opt.model_dir,'cost_models', opt.mfile + '.cost'+cost_name+'.model'))['model']
 
 
-dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=model.opt.use_colored_lane, use_offroad_map=model.opt.use_offroad_lane)
+dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=model.opt.use_colored_lane,
+                        use_offroad_map=model.opt.use_offroad_lane, use_speed_map=model.opt.use_speed_map)
 model.train()
 model.opt.u_hinge = opt.u_hinge
 planning.estimate_uncertainty_stats(model, dataloader, n_batches=50, npred=opt.npred, pad=opt.pad, offroad_range=opt.offroad_range)

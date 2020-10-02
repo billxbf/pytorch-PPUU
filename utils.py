@@ -585,6 +585,8 @@ def parse_command_line(parser=None):
     parser.add_argument('-ksize', type=int, default=7, help='kernel size for blurring')
     parser.add_argument('-position_threshold', type=int, default=1, help='threshold for position cost')
     parser.add_argument('-offroad_range', type=float, default=1.0, help='The range of offroad cost')
+    parser.add_argument('-use_speed_map', type=bool, default=False, help='use speed channel for forward model')
+    parser.add_argument('-lambda_s', type=float, default=0.0, help='speed')
     opt = parser.parse_args()
     opt.n_inputs = 4
     opt.n_actions = 2
@@ -624,6 +626,8 @@ def build_model_file_name(opt):
         opt.model_file += f'-pt={opt.position_threshold}'
     if opt.use_offroad_map:
         opt.model_file += f'-range={opt.offroad_range}'
+    if opt.use_speed_map:
+        opt.model_file += f'-lambdas={opt.lambda_s}'
     if opt.value_model == '':
         opt.model_file += '-novalue'
 
