@@ -941,8 +941,8 @@ class DeterministicPolicy(nn.Module):
             h = h + self.context_encoder(context)
         a = self.fc(h).view(bsize, self.n_outputs)
 
-        # limit a[0] into [-1,1]
-        a[:, 0] = nn.Tanh()(a[:, 0])
+        # limit a into [-1,1]
+        a = nn.Tanh()(a)
 
         if normalize_outputs:  # done only at inference time, if only "volatile" was still a thing...
             a = a.data

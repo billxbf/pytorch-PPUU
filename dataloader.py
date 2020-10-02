@@ -328,7 +328,10 @@ class DataLoader:
 
     def normalise_action(self, actions):
         actions -= self.a_mean.view(1, 1, 2).expand(actions.size()).to(actions.device)
-        actions /= (1e-8 + self.a_std.view(1, 1, 2).expand(actions.size())).to(actions.device)
+        # reduce insensible std
+        # std after histgram
+        actions /= (1e-8 + torch.tensor([4, 4]).view(1, 1, 2).expand(actions.size())).to(actions.device)
+        # actions /= (1e-8 + self.a_std.view(1, 1, 2).expand(actions.size())).to(actions.device)
         return actions
 
 
