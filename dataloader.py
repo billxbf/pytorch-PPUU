@@ -54,6 +54,8 @@ class DataLoader:
                     self.lane_images += data.get('lane_images')
                     if use_offroad_map:
                         self.offroad_images += data.get('offroad_images')
+                    if use_speed_map:
+                        self.speed_images += data.get('speed_images')
             else:
                 print(data_dir)
                 images = []
@@ -113,6 +115,7 @@ class DataLoader:
                     'ego_car': ego_car_images,
                     'lane_images': lane_images,
                     'offroad_images': offroad_images,
+                    'speed_images': speed_images
                 }, combined_data_path)
                 self.images += images
                 self.actions += actions
@@ -235,7 +238,7 @@ class DataLoader:
                     if self.use_offroad_map:
                         offroad_images.append(self.offroad_images[s][t: t + T].to(device))
                     if self.use_speed_map:
-                        speed_images.append(self.offroad_images[s][t: t + T].to(device))
+                        speed_images.append(self.speed_images[s][t: t + T].to(device))
                 splits = self.ids[s].split('/')
                 time_slot = splits[-2]
                 car_id = int(re.findall(r'car(\d+).pkl', splits[-1])[0])
@@ -261,6 +264,7 @@ class DataLoader:
                 del offroad_images
             if self.use_speed_map:
                 speed_images = torch.stack(speed_images)
+                speed_images = self.normalise_speed(speed_images)
                 images = torch.cat([images, speed_images[:, :, 0, :, :].unsqueeze(dim=2)],
                                    dim=2)  # Only use blue channel
                 del speed_images
