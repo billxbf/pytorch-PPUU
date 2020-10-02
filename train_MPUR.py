@@ -124,6 +124,7 @@ def start(what, nbatches, npred, track=False, pad=1, offroad_range=1.0):
             uncertainty=0,
             position=0,
             orientation=0,
+            speed=0,
             action=0,
             policy=0,
         )
@@ -157,7 +158,8 @@ def start(what, nbatches, npred, track=False, pad=1, offroad_range=1.0):
                              opt.u_reg * pred['uncertainty'] + \
                              opt.lambda_o * pred['orientation'] + \
                              opt.lambda_a * pred['action'] + \
-                             opt.lambda_l * pred['position']
+                             opt.lambda_l * pred['position'] + \
+                             opt.lambda_s * pred['speed']
         else:
             pred['policy'] = pred['proximity'] + \
                              opt.u_reg * pred['uncertainty'] + \
@@ -232,6 +234,7 @@ if opt.use_colored_lane:
         p='proximity',
         c='position',
         o='orientation',
+        s='speed',
         u='uncertainty',
         a='action',
         π='policy',

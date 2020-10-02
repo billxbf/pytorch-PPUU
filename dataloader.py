@@ -264,7 +264,6 @@ class DataLoader:
                 del offroad_images
             if self.use_speed_map:
                 speed_images = torch.stack(speed_images)
-                speed_images = self.normalise_speed(speed_images)
                 images = torch.cat([images, speed_images[:, :, 0, :, :].unsqueeze(dim=2)],
                                    dim=2)  # Only use blue channel
                 del speed_images
@@ -322,9 +321,11 @@ class DataLoader:
 
         return [input_images, input_states, ego_cars], actions, [target_images, target_states, target_costs], ids, sizes
 
-    @staticmethod
-    def normalise_state_image(images):
-        return images.float().div_(255.0)
+    def normalise_state_image(self, images):
+        images = images.float().div_(255.0)
+        if self.use_speed_map:
+            images[:, :, 5] = self.normalise_speed(images)
+        return images
 
     def normalise_state_vector(self, states):
         shape = (1, 1, 4) if states.dim() == 3 else (1, 4)  # dim = 3: state sequence, dim = 2: single state
@@ -340,7 +341,7 @@ class DataLoader:
     def normalise_speed(self, speed_images):
         max_speed = self.speed_stats[0]
         min_speed = self.speed_stats[1]
-        speed_images[:, :, 0, :, :] = speed_images[:, :, 0, :, :]*(max_speed-min_speed)+min_speed
+        speed_images = speed_images[:, :, 5]*(max_speed-min_speed)+min_speed
         return speed_images
 
 if __name__ == '__main__':

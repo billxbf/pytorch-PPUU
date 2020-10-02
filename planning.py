@@ -95,11 +95,14 @@ def compute_uncertainty_batch(model, input_images, input_states, actions, target
             car_sizes_temp, green_channel=3 if model.opt.use_colored_lane else 1,
             unnormalize=True, s_mean=model.stats['s_mean'], s_std=model.stats['s_std'])
         if model.opt.use_colored_lane:
-            orientation_cost, position_cost = utils.orientation_and_position_cost(
+            orientation_cost, position_cost, speed_cost = utils.orientation_and_position_cost(
                 pred_images, pred_states.data,
                 car_size=car_sizes_temp,
-                unnormalize=True, s_mean=model.stats['s_mean'], s_std=model.stats['s_std'], pad=pad, offroad_range=offroad_range)
+                unnormalize=True, s_mean=model.stats['s_mean'], s_std=model.stats['s_std'], pad=pad,
+                offroad_range=offroad_range, opt=model.opt)
             pred_costs += model.opt.lambda_o * orientation_cost + model.opt.lambda_l * position_cost
+            if model.opt.use_speed_map:
+                pred_costs += model.opt.lambda_s * speed_cost
         else:
             lane_cost, prox_map_l = utils.lane_cost(pred_images, car_sizes_temp)
             offroad_cost = utils.offroad_cost(pred_images, prox_map_l)
@@ -265,16 +268,19 @@ def plan_actions_backprop(model, input_images, input_states, car_sizes, npred=50
             uncertainty_loss = torch.zeros(1)
 
         if model.opt.use_colored_lane is True:
-            orientation_loss, position_loss = utils.orientation_and_position_cost(pred_images, pred_states.data,
+            orientation_loss, position_loss, speed_loss = utils.orientation_and_position_cost(pred_images, pred_states.data,
                                                                                       car_size=car_sizes.expand(n_futures, 2),
                                                                                       unnormalize=True,
                                                                                       s_mean=model.stats['s_mean'],
                                                                                       s_std=model.stats['s_std'],
                                                                                       pad=pad,
-                                                                                      offroad_range=offroad_range)
+                                                                                      offroad_range=offroad_range,
+                                                                                      opt=model.opt)
             orientation_loss = torch.mean(orientation_loss * gamma_mask[:, :npred])
             position_loss = torch.mean(position_loss * gamma_mask[:, :npred])
             loss = loss + lambda_l * position_loss + lambda_o * orientation_loss
+            if model.opt.use_speed_map:
+                loss += model.opt.lambda_s * loss
         else:
             lane_loss, prox_map_l = utils.lane_cost(pred_images, car_sizes.expand(n_futures, 2))
             lane_loss = torch.mean(lane_loss * gamma_mask[:, :npred])
@@ -398,10 +404,10 @@ def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampli
         if n_updates_z > 0:
             proximity_cost = 0.5 * proximity_cost + 0.5 * pred_cost_adv.squeeze()
         if model.opt.use_colored_lane:
-            orientation_cost, position_cost = utils.orientation_and_position_cost(
+            orientation_loss, position_loss, speed_loss = utils.orientation_and_position_cost(
                                                 pred_images[:, :, :n_channels].contiguous(), pred_states.data, car_size=car_sizes,
                                                 unnormalize=True, s_mean=model.stats['s_mean'],
-                                                s_std=model.stats['s_std'], pad=pad, offroad_range=offroad_range)
+                                                s_std=model.stats['s_std'], pad=pad, offroad_range=offroad_range, opt=model.opt)
         else:
             lane_cost, prox_map_l = utils.lane_cost(pred_images[:, :, :3].contiguous(), car_sizes)
             offroad_cost = utils.offroad_cost(pred_images[:, :, :3].contiguous(), prox_map_l)
@@ -453,6 +459,7 @@ def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampli
             proximity=proximity_loss,
             orientation=orientation_loss,
             position=position_loss,
+            speed=speed_loss,
             uncertainty=total_u_loss,
             action=loss_a,
         )
