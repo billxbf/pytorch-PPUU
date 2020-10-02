@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 class DataLoader:
     def __init__(self, fname, opt, dataset='simulator', single_shard=False, use_colored_lane=False,
-                 use_offroad_map=False):
+                 use_offroad_map=False, use_speed_map=False):
         if opt.debug:
             single_shard = True
         self.opt = opt
@@ -32,10 +32,13 @@ class DataLoader:
         self.ego_car_images = []
         self.use_colored_lane = use_colored_lane
         self.use_offroad_map = use_offroad_map
+        self.use_speed_map = use_speed_map
         if use_colored_lane:
             self.lane_images = []
             if use_offroad_map:
                 self.offroad_images = []
+            if use_speed_map:
+                self.speed_images = []
         for df in data_files:
             combined_data_path = f'{data_dir}/{df}/all_data.pth'
             if os.path.isfile(combined_data_path):
@@ -62,10 +65,13 @@ class DataLoader:
                 ego_car_images = []
                 lane_images = None
                 offroad_images = None
+                speed_images = None
                 if use_colored_lane:
                     lane_images = []
                     if use_offroad_map:
                         offroad_images = []
+                    if use_speed_map:
+                        speed_images = []
                 for f in ids:
                     print(f'[loading {f}]')
                     fd = pickle.load(open(f, 'rb'))
@@ -94,6 +100,8 @@ class DataLoader:
                         lane_images.append(fd['lane_images'])
                         if use_offroad_map:
                             offroad_images.append(fd['offroad_images'])
+                        if use_speed_map:
+                            speed_images.append(fd['speed_images'])
 
                 print(f'Saving {combined_data_path} to disk')
                 torch.save({
@@ -116,6 +124,8 @@ class DataLoader:
                     self.lane_images += lane_images
                     if use_offroad_map:
                         self.offroad_images += offroad_images
+                    if use_speed_map:
+                        self.speed_images += speed_images
 
         self.n_episodes = len(self.images)
         print(f'Number of episodes: {self.n_episodes}')
@@ -169,6 +179,10 @@ class DataLoader:
                         'a_std': self.a_std,
                         's_mean': self.s_mean,
                         's_std': self.s_std}, stats_path)
+        if self.use_speed_map:
+            speed_stats_path = 'speed_stats.pth'
+            print(f'[loading speed stats: {speed_stats_path}]')
+            self.speed_stats = torch.load(speed_stats_path)
 
         car_sizes_path = data_dir + '/car_sizes.pth'
         print(f'[loading car sizes: {car_sizes_path}]')
@@ -197,6 +211,8 @@ class DataLoader:
             lane_images = []
             if self.use_offroad_map:
                 offroad_images = []
+            if self.use_speed_map:
+                speed_images = []
         nb = 0
         T = self.opt.ncond + npred
         while nb < self.opt.batch_size:
@@ -218,6 +234,8 @@ class DataLoader:
                     lane_images.append(self.lane_images[s][t: t + T].to(device))
                     if self.use_offroad_map:
                         offroad_images.append(self.offroad_images[s][t: t + T].to(device))
+                    if self.use_speed_map:
+                        speed_images.append(self.offroad_images[s][t: t + T].to(device))
                 splits = self.ids[s].split('/')
                 time_slot = splits[-2]
                 car_id = int(re.findall(r'car(\d+).pkl', splits[-1])[0])
@@ -241,7 +259,11 @@ class DataLoader:
                 images = torch.cat([images, offroad_images[:, :, 2, :, :].unsqueeze(dim=2)],
                                    dim=2)  # Only use blue channel
                 del offroad_images
-
+            if self.use_speed_map:
+                speed_images = torch.stack(speed_images)
+                images = torch.cat([images, speed_images[:, :, 0, :, :].unsqueeze(dim=2)],
+                                   dim=2)  # Only use blue channel
+                del speed_images
         # Normalise actions, state_vectors, state_images
         if not self.opt.debug:
             actions = self.normalise_action(actions)
@@ -311,6 +333,11 @@ class DataLoader:
         actions /= (1e-8 + self.a_std.view(1, 1, 2).expand(actions.size())).to(actions.device)
         return actions
 
+    def normalise_speed(self, speed_images):
+        max_speed = self.speed_stats[0]
+        min_speed = self.speed_stats[1]
+        speed_images[:, :, 0, :, :] = speed_images[:, :, 0, :, :]*(max_speed-min_speed)+min_speed
+        return speed_images
 
 if __name__ == '__main__':
     # Create some dummy options
