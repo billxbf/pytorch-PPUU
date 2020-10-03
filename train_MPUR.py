@@ -79,6 +79,12 @@ opt.dataset = f"traffic-data/state-action-cost-{opt.ksize}-{opt.position_thresho
 # Load normalisation stats
 stats = torch.load(opt.dataset+'data_stats.pth')
 model.stats = stats  # used by planning.py/compute_uncertainty_batch
+# reduce insensible std
+# std after histgram
+print('[redefine the mean and std of actions]')
+model.stats['a_mean'] = torch.tensor([0, 0])
+model.stats['a_std'] = torch.tensor([4, 4])
+
 if 'ten' in opt.mfile:
     p_z_file = opt.model_dir + opt.mfile + '.pz'
     p_z = torch.load(p_z_file)

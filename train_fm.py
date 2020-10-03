@@ -128,6 +128,11 @@ scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=350000/opt.epoc
 
 stats = torch.load(opt.dataset+'data_stats.pth')
 model.stats = stats  # used by planning.py/compute_uncertainty_batch
+# reduce insensible std
+# std after histgram
+print('[redefine the mean and std of actions]')
+model.stats['a_mean'] = torch.tensor([0, 0])
+model.stats['a_std'] = torch.tensor([4, 4])
 model.cuda()
 
 
