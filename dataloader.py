@@ -186,6 +186,13 @@ class DataLoader:
         print(f'[loading car sizes: {car_sizes_path}]')
         self.car_sizes = torch.load(car_sizes_path)
         self.index=0
+
+        # reduce insensible std
+        # std after histgram
+        print('[redefine the mean and std of actions]')
+        self.a_mean = torch.tensor([0, 0])
+        self.a_std = torch.tensor([4, 4])
+
     # get batch to use for forward modeling
     # a sequence of ncond given states, a sequence of npred actions,
     # and a sequence of npred states to be predicted
@@ -328,10 +335,7 @@ class DataLoader:
 
     def normalise_action(self, actions):
         actions -= self.a_mean.view(1, 1, 2).expand(actions.size()).to(actions.device)
-        # reduce insensible std
-        # std after histgram
-        actions /= (1e-8 + torch.tensor([4, 4]).view(1, 1, 2).expand(actions.size())).to(actions.device)
-        # actions /= (1e-8 + self.a_std.view(1, 1, 2).expand(actions.size())).to(actions.device)
+        actions /= (1e-8 + self.a_std.view(1, 1, 2).expand(actions.size())).to(actions.device)
         return actions
 
 
