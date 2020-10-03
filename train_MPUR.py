@@ -110,7 +110,8 @@ if opt.learned_cost!= 'False':
 
 
 dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=model.opt.use_colored_lane,
-                        use_offroad_map=model.opt.use_offroad_lane, use_speed_map=model.opt.use_speed_map)
+                            use_offroad_map=model.opt.use_offroad_lane if hasattr(model.opt,'use_offroad_map') else False,
+                        use_speed_map=model.opt.use_speed_map if hasattr(model.opt,'use_speed_map') else False)
 model.train()
 model.opt.u_hinge = opt.u_hinge
 planning.estimate_uncertainty_stats(model, dataloader, n_batches=50, npred=opt.npred, pad=opt.pad, offroad_range=opt.offroad_range)
