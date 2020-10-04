@@ -231,6 +231,7 @@ def parse_args():
     parser.add_argument('-ksize', type=int, default=7)
     parser.add_argument('-position_threshold', type=int, default=1)
     parser.add_argument('-offroad_map', type=str, default=None)
+    parser.add_argument('-speed_map', type=str, default=None)
     opt = parser.parse_args()
     opt.save_dir = path.join(opt.model_dir, 'planning_results')
     opt.height = 117
@@ -481,8 +482,9 @@ def main():
     opt.colored_lane = f"{opt.ksize}g{opt.position_threshold}actrajectory.jpg"
     data_path = opt.dataset
 
-    dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=True if opt.colored_lane is not None else False,
-                            use_offroad_map=True if opt.offroad_map is not None else False)
+    dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=opt.use_colored_lane,
+                            use_offroad_map=opt.use_offroad_lane if hasattr(opt,'use_offroad_map') else False,
+                        use_speed_map=opt.use_speed_map if hasattr(opt,'use_speed_map') else False)
     (
         forward_model,
         value_function,
@@ -498,7 +500,8 @@ def main():
         if hasattr(forward_model, 'value_function'):
             forward_model.value_function.train()
         planning.estimate_uncertainty_stats(
-            forward_model, dataloader, n_batches=50, npred=opt.npred, pad=opt.pad, offroad_range=forward_model.policy_net.opt.offroad_range)
+            forward_model, dataloader, n_batches=50, npred=opt.npred, pad=opt.pad,
+            offroad_range=forward_model.policy_net.opt.offroad_range)
 
     gym.envs.registration.register(
         id='I-80-v1',
@@ -511,7 +514,8 @@ def main():
             store_simulator_video=opt.save_sim_video,
             show_frame_count=False,
             colored_lane=opt.colored_lane,
-            offroad_map=opt.offroad_map
+            offroad_map=opt.offroad_map,
+            speed_map=opt.speed_map
         )
     )
 
