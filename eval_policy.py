@@ -482,9 +482,9 @@ def main():
     opt.colored_lane = f"{opt.ksize}g{opt.position_threshold}actrajectory.jpg"
     data_path = opt.dataset
 
-    dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=opt.use_colored_lane,
-                            use_offroad_map=opt.use_offroad_map if hasattr(opt,'use_offroad_map') else False,
-                        use_speed_map=opt.use_speed_map if hasattr(opt,'use_speed_map') else False)
+    dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=True if hasattr(opt,'colored_lane') and opt.colored_lane else False,
+                            use_offroad_map=True if hasattr(opt,'offroad_map') and opt.offroad_map else False,
+                        use_speed_map=True if hasattr(opt,'speed_map') and opt.speed_map else False)
     (
         forward_model,
         value_function,
