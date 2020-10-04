@@ -483,7 +483,7 @@ def main():
     data_path = opt.dataset
 
     dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=opt.use_colored_lane,
-                            use_offroad_map=opt.use_offroad_lane if hasattr(opt,'use_offroad_map') else False,
+                            use_offroad_map=opt.use_offroad_map if hasattr(opt,'use_offroad_map') else False,
                         use_speed_map=opt.use_speed_map if hasattr(opt,'use_speed_map') else False)
     (
         forward_model,
