@@ -122,13 +122,11 @@ def proximity_cost(images, states, car_size=(6.4, 14.3), green_channel=1, unnorm
     width = width * SCALE * (0.3048 * 24 / 3.7)  # pixels
     length = length * SCALE * (0.3048 * 24 / 3.7)  # pixels 
 
-    alpha = 1 * SCALE * (24 / 3.7)  # 1 m overlap collision
-
-    safe_distance = torch.abs(speed) * safe_factor + alpha  # plus one metre (TODO change)
+    safe_distance = torch.abs(speed) * safe_factor + (1 * 24 / 3.7) * SCALE  # plus one metre (TODO change)
 
     # Compute x/y minimum distance to other vehicles (pixel version)
     # Account for 1 metre overlap (low data accuracy)
-
+    alpha = 1 * SCALE * (24 / 3.7)  # 1 m overlap collision
     # Create separable proximity mask
 
     max_x = torch.ceil((crop_h - torch.clamp(length - alpha, min=0)) / 2)
@@ -137,7 +135,7 @@ def proximity_cost(images, states, car_size=(6.4, 14.3), green_channel=1, unnorm
     max_y = max_y.view(bsize, 1).expand(bsize, npred).contiguous().view(bsize * npred).cuda()
 
     min_x = torch.clamp(max_x - safe_distance, min=0)
-    min_y = torch.ceil(crop_w / 2 - width - alpha)  # assumes other._width / 2 = self._width / 2 plus 1m
+    min_y = torch.ceil(crop_w / 2 - width)  # assumes other._width / 2 = self._width / 2
     min_y = min_y.view(bsize, 1).expand(bsize, npred).contiguous().view(bsize * npred).cuda()
 
     # transform type
@@ -185,7 +183,7 @@ def orientation_and_position_cost(images, states, pad, offroad_range, opt, car_s
     dmap = torch.stack([2 * (neighbourhood_array[:, :, 0] - 0.5),
                              2 * (neighbourhood_array[:, :, 1] - 0.5)], dim=2).cuda()
     v = neighbourhood_array[:, :, 2]
-    if opt.use_speed_map:
+    if opt.use_offroad_map:
         offroad = neighbourhood_array[:, :, 4]
     else:
         offroad = torch.ones_like(neighbourhood_array[:, :, 2])
@@ -202,7 +200,7 @@ def orientation_and_position_cost(images, states, pad, offroad_range, opt, car_s
                     -torch.log(torch.mean(torch.mean(offroad, dim=-1), dim=-1)*(1-math.exp(-offroad_range))+math.exp(-offroad_range))
     speed_cost = torch.zeros_like(position_cost)
     if opt.use_speed_map:
-        speed_cost = torch.mean(torch.mean((torch.norm(speed, dim=2)-target_speed)**2, dim=-1), dim=-1)
+        speed_cost = torch.mean(torch.mean(v, dim=-1), dim=-1)*torch.mean(torch.mean((torch.norm(speed, dim=2)-target_speed)**2, dim=-1), dim=-1)
     return orientation_cost.view(bsize, npred), position_cost.view(bsize, npred), speed_cost.view(bsize, npred)
 
 def parse_car_path(path):
@@ -589,7 +587,7 @@ def parse_command_line(parser=None):
     parser.add_argument('-use_offroad_map', type=bool, default=False, help='use offroad channel for forward model')
     parser.add_argument('-ksize', type=int, default=7, help='kernel size for blurring')
     parser.add_argument('-position_threshold', type=int, default=1, help='threshold for position cost')
-    parser.add_argument('-offroad_range', type=float, default=1.0, help='The range of offroad cost')
+    parser.add_argument('-offroad_range', type=float, default=0.0, help='The range of offroad cost')
     parser.add_argument('-use_speed_map', type=bool, default=False, help='use speed channel for forward model')
     parser.add_argument('-lambda_s', type=float, default=0.0, help='speed')
     opt = parser.parse_args()

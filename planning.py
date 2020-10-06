@@ -451,10 +451,24 @@ def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampli
 
     loss_a = pred_actions.norm(2, 2).pow(2).mean()
 
-    pred_images = pred_images[:, :, :3]
+    pred_images = pred_images
     if model.opt.use_colored_lane:
+        vehicle_mask = pred_images[:, :, 3] > 0.3
+        ego_mask = pred_images[:, :, 4] > 0
+        vehicle_value = pred_images[:, :, 3]
+        ego_value = pred_images[:, :, 4]
+        image_red = pred_images[:, :, 0]
+        image_green = pred_images[:, :, 1]
+        image_blue = pred_images[:, :, 2]
+        image_green[vehicle_mask] = vehicle_value[vehicle_mask]
+        image_red[vehicle_mask] = 0
+        image_blue[vehicle_mask] = 0
+        image_green[ego_mask] = 0
+        image_red[ego_mask] = 0
+        image_blue[ego_mask] = ego_value[ego_mask]
+        images_3_channels = torch.stack([image_red, image_green, image_blue], dim=2)
         predictions = dict(
-            state_img=(pred_images + input_ego_car_orig[:, None].expand_as(pred_images)).clamp(max=1.),
+            state_img=images_3_channels[:, :, :3],
             state_vct=pred_states,
             proximity=proximity_loss,
             orientation=orientation_loss,

@@ -64,7 +64,7 @@ if os.path.isfile(opt.model_file + '.model'):
     checkpoint = torch.load(filename)
     model = checkpoint['model']
     model.cuda()
-    optimizer = optim.Adam(model.parameters(), opt.lrt)
+    optimizer = optim.Adam(model.policy_net.parameters(), opt.lrt)
     optimizer.load_state_dict(checkpoint['optimizer'])
     n_iter = checkpoint['n_iter']
     utils.log(opt.model_file + '.log', '[resuming from checkpoint]')
