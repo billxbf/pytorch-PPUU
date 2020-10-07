@@ -74,6 +74,8 @@ def compute_uncertainty_batch(model, input_images, input_states, actions, target
         n_channels = 4
         if model.opt.use_offroad_map:
             n_channels = 5
+        if model.opt.use_speed_map:
+            n_channels = 6
     else:
         n_channels = 3
 
@@ -280,7 +282,7 @@ def plan_actions_backprop(model, input_images, input_states, car_sizes, npred=50
             position_loss = torch.mean(position_loss * gamma_mask[:, :npred])
             loss = loss + lambda_l * position_loss + lambda_o * orientation_loss
             if model.opt.use_speed_map:
-                loss += model.opt.lambda_s * loss
+                loss += model.opt.lambda_s * speed_loss
         else:
             lane_loss, prox_map_l = utils.lane_cost(pred_images, car_sizes.expand(n_futures, 2))
             lane_loss = torch.mean(lane_loss * gamma_mask[:, :npred])
@@ -404,7 +406,7 @@ def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampli
         if n_updates_z > 0:
             proximity_cost = 0.5 * proximity_cost + 0.5 * pred_cost_adv.squeeze()
         if model.opt.use_colored_lane:
-            orientation_loss, position_loss, speed_loss = utils.orientation_and_position_cost(
+            orientation_cost, position_cost, speed_cost = utils.orientation_and_position_cost(
                                                 pred_images[:, :, :n_channels].contiguous(), pred_states.data, car_size=car_sizes,
                                                 unnormalize=True, s_mean=model.stats['s_mean'],
                                                 s_std=model.stats['s_std'], pad=pad, offroad_range=offroad_range, opt=model.opt)
@@ -439,6 +441,7 @@ def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampli
         if model.opt.use_colored_lane:
             orientation_loss = torch.mean(orientation_cost * gamma_mask[:, :npred])
             position_loss = torch.mean(position_cost * gamma_mask[:, :npred])
+            speed_loss = torch.mean(speed_cost * gamma_mask[:, :npred])
         else:
             lane_loss = torch.mean(lane_cost * gamma_mask[:, :npred])
             offroad_cost = torch.mean(offroad_cost * gamma_mask[:, :npred])
