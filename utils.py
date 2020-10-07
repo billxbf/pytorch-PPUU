@@ -166,7 +166,8 @@ def proximity_cost(images, states, car_size=(6.4, 14.3), green_channel=1, unnorm
     #    costs = torch.max((proximity_mask * images[:, :, green_channel].float()).view(bsize, npred, -1), 2)[0]
     return costs.view(bsize, npred), proximity_mask
 
-def orientation_and_position_cost(images, states, pad, offroad_range, opt, car_size=(6.4, 14.3), unnormalize=False, s_mean=None, s_std=None):
+def orientation_and_position_cost(images, states, pad, offroad_range, opt, car_size=(6.4, 14.3), unnormalize=False,
+                                  s_mean=None, s_std=None, speed_max=None):
     SCALE = 0.25
     bsize, npred, nchannels, crop_h, crop_w = images.size()
     images = images.view(bsize * npred, nchannels, crop_h, crop_w)
@@ -200,7 +201,7 @@ def orientation_and_position_cost(images, states, pad, offroad_range, opt, car_s
                     -torch.log(torch.mean(torch.mean(offroad, dim=-1), dim=-1)*(1-math.exp(-offroad_range))+math.exp(-offroad_range))
     speed_cost = torch.zeros_like(position_cost)
     if opt.use_speed_map:
-        speed_cost = torch.mean(torch.mean(v, dim=-1), dim=-1)*torch.mean(torch.mean((torch.norm(speed, dim=2)-target_speed)**2, dim=-1), dim=-1)
+        speed_cost = torch.mean(torch.mean(v, dim=-1), dim=-1)*torch.mean(torch.mean((torch.norm(speed, dim=2)/speed_max-target_speed)**2, dim=-1), dim=-1)
     return orientation_cost.view(bsize, npred), position_cost.view(bsize, npred), speed_cost.view(bsize, npred)
 
 def parse_car_path(path):

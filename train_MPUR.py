@@ -85,6 +85,10 @@ print('[redefine the mean and std of actions]')
 model.stats['a_mean'] = torch.tensor([0, 0])
 model.stats['a_std'] = torch.tensor([4, 4])
 
+print('[loading speed stat]')
+speed_stats = torch.load('speed_stats.pth')
+model.stats['speed_max'] = speed_stats[1]
+
 if 'ten' in opt.mfile:
     p_z_file = opt.model_dir + opt.mfile + '.pz'
     p_z = torch.load(p_z_file)

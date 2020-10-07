@@ -101,7 +101,7 @@ def compute_uncertainty_batch(model, input_images, input_states, actions, target
                 pred_images, pred_states.data,
                 car_size=car_sizes_temp,
                 unnormalize=True, s_mean=model.stats['s_mean'], s_std=model.stats['s_std'], pad=pad,
-                offroad_range=offroad_range, opt=model.opt)
+                offroad_range=offroad_range, opt=model.opt, speed_max=model.stats['speed_max'])
             pred_costs += model.opt.lambda_o * orientation_cost + model.opt.lambda_l * position_cost
             if model.opt.use_speed_map:
                 pred_costs += model.opt.lambda_s * speed_cost
@@ -277,7 +277,8 @@ def plan_actions_backprop(model, input_images, input_states, car_sizes, npred=50
                                                                                       s_std=model.stats['s_std'],
                                                                                       pad=pad,
                                                                                       offroad_range=offroad_range,
-                                                                                      opt=model.opt)
+                                                                                      opt=model.opt,
+                                                                                      speed_max=model.stats['speed_max'])
             orientation_loss = torch.mean(orientation_loss * gamma_mask[:, :npred])
             position_loss = torch.mean(position_loss * gamma_mask[:, :npred])
             loss = loss + lambda_l * position_loss + lambda_o * orientation_loss
@@ -409,7 +410,8 @@ def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampli
             orientation_cost, position_cost, speed_cost = utils.orientation_and_position_cost(
                                                 pred_images[:, :, :n_channels].contiguous(), pred_states.data, car_size=car_sizes,
                                                 unnormalize=True, s_mean=model.stats['s_mean'],
-                                                s_std=model.stats['s_std'], pad=pad, offroad_range=offroad_range, opt=model.opt)
+                                                s_std=model.stats['s_std'], pad=pad, offroad_range=offroad_range, opt=model.opt,
+                                                speed_max=model.stats['speed_max'])
         else:
             lane_cost, prox_map_l = utils.lane_cost(pred_images[:, :, :3].contiguous(), car_sizes)
             offroad_cost = utils.offroad_cost(pred_images[:, :, :3].contiguous(), prox_map_l)
