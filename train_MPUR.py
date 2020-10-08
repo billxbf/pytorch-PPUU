@@ -53,6 +53,7 @@ if not hasattr(model.encoder, 'n_channels'):
     model.encoder.n_channels = 3
 model.opt.lambda_l = opt.lambda_l  # used by planning.py/compute_uncertainty_batch
 model.opt.lambda_o = opt.lambda_o  # used by planning.py/compute_uncertainty_batch
+model.opt.lambda_s = opt.lambda_s  # used by planning.py/compute_uncertainty_batch
 if opt.value_model != '':
     value_function = torch.load(path.join(opt.model_dir, 'value_functions', opt.value_model)).to(opt.device)
     model.value_function = value_function
