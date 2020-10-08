@@ -137,9 +137,9 @@ class decoder(nn.Module):
         if self.opt.use_colored_lane:
             self.n_channels = 4
             if hasattr(self.opt, "use_offroad_map") and self.opt.use_offroad_map:
-                self.n_channels = 5
+                self.n_channels = self.n_channels + 1
             if hasattr(self.opt, "use_speed_map") and self.opt.use_speed_map:
-                self.n_channels = 6
+                self.n_channels = self.n_channels + 1
 
         self.nfeature = self.opt.nfeature
         self.feature_maps = [int(self.nfeature / 4), int(self.nfeature / 2), self.nfeature]
