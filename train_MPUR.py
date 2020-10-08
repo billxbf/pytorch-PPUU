@@ -88,7 +88,7 @@ model.stats['a_std'] = torch.tensor([4, 4])
 
 print('[loading speed stat]')
 speed_stats = torch.load('speed_stats.pth')
-model.stats['speed_max'] = speed_stats[1]
+model.stats['speed_max'] = speed_stats[0]
 
 if 'ten' in opt.mfile:
     p_z_file = opt.model_dir + opt.mfile + '.pz'
@@ -168,7 +168,7 @@ def start(what, nbatches, npred, track=False, pad=1, offroad_range=1.0):
         if opt.use_colored_lane:
             pred['policy'] = pred['proximity'] + \
                              opt.u_reg * pred['uncertainty'] + \
-                             opt.lambda_o * pred['orientation'] + \
+                                 opt.lambda_o * pred['orientation'] + \
                              opt.lambda_a * pred['action'] + \
                              opt.lambda_l * pred['position'] + \
                              opt.lambda_s * pred['speed']
