@@ -408,15 +408,14 @@ def process_one_episode(opt,
     if len(images) > 3:
         if opt.colored_lane is not None:
             vehicle_mask = images[:, 3] > 0
+            ego_num = 4
             if opt.offroad_map is not None:
-                ego_mask = images[:, 5] > 0
-            else:
-                ego_mask = images[:, 4] > 0
+                ego_num += 1
+            if opt.speed_map is not None:
+                ego_num += 1
+            ego_mask = images[:, ego_num] > 0
             vehicle_value = images[:, 3]
-            if opt.offroad_map is not None:
-                ego_value = images[:, 5]
-            else:
-                ego_value = images[:, 4]
+            ego_value = images[:, ego_num]
             image_red = images[:, 0]
             image_green = images[:, 1]
             image_blue = images[:, 2]
