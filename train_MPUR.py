@@ -72,6 +72,7 @@ if os.path.isfile(opt.model_file + '.model'):
 else:
     model.create_policy_net(opt)
     optimizer = optim.Adam(model.policy_net.parameters(), opt.lrt)  # POLICY optimiser ONLY!
+    n_iter = 0
 scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50_000/opt.epoch_size, gamma=0.1)
 
 # data
@@ -80,11 +81,6 @@ opt.dataset = f"traffic-data/state-action-cost-{opt.ksize}-{opt.position_thresho
 # Load normalisation stats
 stats = torch.load(opt.dataset+'data_stats.pth')
 model.stats = stats  # used by planning.py/compute_uncertainty_batch
-# reduce insensible std
-# std after histgram
-print('[redefine the mean and std of actions]')
-model.stats['a_mean'] = torch.tensor([0, 0])
-model.stats['a_std'] = torch.tensor([4, 4])
 
 print('[loading speed stat]')
 speed_stats = torch.load('speed_stats.pth')
@@ -116,7 +112,8 @@ if opt.learned_cost!= 'False':
 
 dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=model.opt.use_colored_lane,
                             use_offroad_map=model.opt.use_offroad_map if hasattr(model.opt,'use_offroad_map') else False,
-                        use_speed_map=model.opt.use_speed_map if hasattr(model.opt,'use_speed_map') else False)
+                        use_speed_map=model.opt.use_speed_map if hasattr(model.opt,'use_speed_map') else False,
+                        use_kinetic_model=model.opt.use_kinetic_model if hasattr(model.opt,'use_kinetic_model') else False)
 model.train()
 model.opt.u_hinge = opt.u_hinge
 planning.estimate_uncertainty_stats(model, dataloader, n_batches=50, npred=opt.npred, pad=opt.pad, offroad_range=opt.offroad_range)
@@ -168,7 +165,7 @@ def start(what, nbatches, npred, track=False, pad=1, offroad_range=1.0):
         if opt.use_colored_lane:
             pred['policy'] = pred['proximity'] + \
                              opt.u_reg * pred['uncertainty'] + \
-                                 opt.lambda_o * pred['orientation'] + \
+                             opt.lambda_o * pred['orientation'] + \
                              opt.lambda_a * pred['action'] + \
                              opt.lambda_l * pred['position'] + \
                              opt.lambda_s * pred['speed']
@@ -240,7 +237,6 @@ def start(what, nbatches, npred, track=False, pad=1, offroad_range=1.0):
 
 print('[training]')
 utils.log(opt.model_file + '.log', f'[job name: {opt.model_file}]')
-n_iter = 0
 if opt.use_colored_lane:
     losses = OrderedDict(
         p='proximity',

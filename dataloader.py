@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 class DataLoader:
     def __init__(self, fname, opt, dataset='simulator', single_shard=False, use_colored_lane=False,
-                 use_offroad_map=False, use_speed_map=False):
+                 use_offroad_map=False, use_speed_map=False, use_kinetic_model=False):
         if opt.debug:
             single_shard = True
         self.opt = opt
@@ -33,6 +33,7 @@ class DataLoader:
         self.use_colored_lane = use_colored_lane
         self.use_offroad_map = use_offroad_map
         self.use_speed_map = use_speed_map
+        self.use_kinetic_model = use_kinetic_model
         if use_colored_lane:
             self.lane_images = []
             if use_offroad_map:
@@ -187,11 +188,6 @@ class DataLoader:
         self.car_sizes = torch.load(car_sizes_path)
         self.index=0
 
-        # reduce insensible std
-        # std after histgram
-        print('[redefine the mean and std of actions]')
-        self.a_mean = torch.tensor([0, 0])
-        self.a_std = torch.tensor([4, 4])
 
     # get batch to use for forward modeling
     # a sequence of ncond given states, a sequence of npred actions,
@@ -270,7 +266,7 @@ class DataLoader:
                                    dim=2)  # Only use blue channel
                 del speed_images
         # Normalise actions, state_vectors, state_images
-        if not self.opt.debug:
+        if not self.opt.debug and not test_data:
             actions = self.normalise_action(actions)
             states = self.normalise_state_vector(states)
         images = self.normalise_state_image(images)
@@ -328,9 +324,14 @@ class DataLoader:
         return images.float().div_(255.0)
 
     def normalise_state_vector(self, states):
-        shape = (1, 1, 4) if states.dim() == 3 else (1, 4)  # dim = 3: state sequence, dim = 2: single state
-        states -= self.s_mean.view(*shape).expand(states.size()).to(states.device)
-        states /= (1e-8 + self.s_std.view(*shape).expand(states.size())).to(states.device)
+        if self.use_kinetic_model:
+            shape = (1, 1, 3) if states.dim() == 3 else (1, 3)  # dim = 3: state sequence, dim = 2: single state
+            states -= self.s_mean.view(*shape).expand(states.size()).to(states.device)
+            states /= (1e-8 + self.s_std.view(*shape).expand(states.size())).to(states.device)
+        else:
+            shape = (1, 1, 4) if states.dim() == 3 else (1, 4)  # dim = 3: state sequence, dim = 2: single state
+            states -= self.s_mean.view(*shape).expand(states.size()).to(states.device)
+            states /= (1e-8 + self.s_std.view(*shape).expand(states.size())).to(states.device)
         return states
 
     def normalise_action(self, actions):

@@ -18,6 +18,7 @@ class encoder(nn.Module):
         self.a_size = a_size
         self.n_inputs = opt.ncond if n_inputs is None else n_inputs
         self.n_channels = n_channels
+        self.use_kinetic_model = self.opt.use_kinetic_model if hasattr(self.opt, "use_kinetic_model") else False
         # colored lane needs an additional channel
         if self.opt.use_colored_lane:
             self.n_channels = self.n_channels + 1
@@ -54,7 +55,7 @@ class encoder(nn.Module):
                 nn.Conv2d(self.feature_maps[2], self.feature_maps[3], 4, 2, 1)
             )
 
-        if states:
+        if states and not self.use_kinetic_model:
             n_hidden = self.feature_maps[-1]
             # state encoder
             self.s_encoder = nn.Sequential(
@@ -83,7 +84,7 @@ class encoder(nn.Module):
     def forward(self, images, states=None, actions=None):
         bsize = images.size(0)
         h = self.f_encoder(images.view(bsize, self.n_inputs * self.n_channels, self.opt.height, self.opt.width))
-        if states is not None:
+        if states is not None and not self.use_kinetic_model:
             h = h + self.s_encoder(states.contiguous().view(bsize, -1)).view(h.size())
         if actions is not None:
             a = self.a_encoder(actions.contiguous().view(bsize, self.a_size))
@@ -140,6 +141,7 @@ class decoder(nn.Module):
                 self.n_channels = self.n_channels + 1
             if hasattr(self.opt, "use_speed_map") and self.opt.use_speed_map:
                 self.n_channels = self.n_channels + 1
+        self.use_kinetic_model = self.opt.use_kinetic_model if hasattr(self.opt, "use_kinetic_model") else False
 
         self.nfeature = self.opt.nfeature
         self.feature_maps = [int(self.nfeature / 4), int(self.nfeature / 2), self.nfeature]
@@ -156,14 +158,15 @@ class decoder(nn.Module):
                 nn.ConvTranspose2d(self.feature_maps[0], self.n_out*self.n_channels, (2, 2), 2, (0, 1))
             )
 
-            self.h_reducer = nn.Sequential(
-                nn.Conv2d(self.feature_maps[2], self.feature_maps[0]//8, 4, 2, 1),
-                nn.Dropout2d(p=opt.dropout, inplace=True),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.Conv2d(self.feature_maps[0]//8, self.feature_maps[0]//16, (4, 1), (2, 1), 0),
-                nn.Dropout2d(p=opt.dropout, inplace=True),
-                nn.LeakyReLU(0.2, inplace=True)
-            )
+            if not self.use_kinetic_model:
+                self.h_reducer = nn.Sequential(
+                    nn.Conv2d(self.feature_maps[2], self.feature_maps[0]//8, 4, 2, 1),
+                    nn.Dropout2d(p=opt.dropout, inplace=True),
+                    nn.LeakyReLU(0.2, inplace=True),
+                    nn.Conv2d(self.feature_maps[0]//8, self.feature_maps[0]//16, (4, 1), (2, 1), 0),
+                    nn.Dropout2d(p=opt.dropout, inplace=True),
+                    nn.LeakyReLU(0.2, inplace=True)
+                )
 
         elif self.opt.layers == 4:
             assert(opt.nfeature % 8 == 0)
@@ -182,29 +185,34 @@ class decoder(nn.Module):
                 nn.ConvTranspose2d(self.feature_maps[0], self.n_out*self.n_channels, (2, 2), 2, (1, 0))
             )
 
-            self.h_reducer = nn.Sequential(
-                nn.Conv2d(opt.nfeature, opt.nfeature, (4, 1), (2, 1), 0),
-                nn.Dropout2d(p=opt.dropout, inplace=True),
-                nn.LeakyReLU(0.2, inplace=True)
-            )
+            if not self.use_kinetic_model:
+                self.h_reducer = nn.Sequential(
+                    nn.Conv2d(opt.nfeature, opt.nfeature, (4, 1), (2, 1), 0),
+                    nn.Dropout2d(p=opt.dropout, inplace=True),
+                    nn.LeakyReLU(0.2, inplace=True)
+                )
 
         n_hidden=self.feature_maps[0]//16
 
-        self.s_predictor = nn.Sequential(
-            nn.Linear(2*n_hidden, n_hidden),
-            nn.Dropout(p=opt.dropout, inplace=True),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(n_hidden, n_hidden),
-            nn.Dropout(p=opt.dropout, inplace=True),
-            nn.LeakyReLU(0.2, inplace=True),
-            nn.Linear(n_hidden, self.n_out*4)
-        )
+        if not self.use_kinetic_model:
+            self.s_predictor = nn.Sequential(
+                nn.Linear(2*n_hidden, n_hidden),
+                nn.Dropout(p=opt.dropout, inplace=True),
+                nn.LeakyReLU(0.2, inplace=True),
+                nn.Linear(n_hidden, n_hidden),
+                nn.Dropout(p=opt.dropout, inplace=True),
+                nn.LeakyReLU(0.2, inplace=True),
+                nn.Linear(n_hidden, self.n_out*4)
+            )
 
     def forward(self, h):
         bsize = h.size(0)
         h = h.view(bsize, self.feature_maps[-1], self.opt.h_height, self.opt.h_width)
-        h_reduced = self.h_reducer(h).view(bsize, -1)
-        pred_state = self.s_predictor(h_reduced)
+        if not self.use_kinetic_model:
+            h_reduced = self.h_reducer(h).view(bsize, -1)
+            pred_state = self.s_predictor(h_reduced)
+        else:
+            pred_state = None
         pred_image = self.f_decoder(h)
         pred_image = pred_image[:, :, :self.opt.height, :self.opt.width].clone()
         pred_image = pred_image.view(bsize, 1, self.n_channels*self.n_out, self.opt.height, self.opt.width)
@@ -568,7 +576,8 @@ class FwdCNN_VAE(nn.Module):
     def __init__(self, opt, mfile=''):
         super(FwdCNN_VAE, self).__init__()
         self.opt = opt
-
+        self.use_kinetic_model = self.opt.use_kinetic_model if hasattr(self.opt, "use_kinetic_model") else False
+        self.state_predictor = predict_states
         if mfile == '':
             self.encoder = encoder(opt, 0, opt.ncond)
             self.decoder = decoder(opt)
@@ -652,7 +661,10 @@ class FwdCNN_VAE(nn.Module):
         pred_image, pred_state = self.decoder(h)
         pred_image = torch.sigmoid(pred_image + input_images[:, -1].unsqueeze(1))
         # pred_state = torch.clamp(pred_state + input_states[:, -1], min=-6, max=6)
-        pred_state = pred_state + input_states[:, -1]
+        if not self.use_kinetic_model:
+            pred_state = pred_state + input_states[:, -1]
+        else:
+            pred_state = self.state_predictor(input_states[:, -1], action, self.stats)
 
         return pred_image, pred_state
 
@@ -709,7 +721,10 @@ class FwdCNN_VAE(nn.Module):
                 pred_image.detach()
                 pred_state.detach()
             pred_image = torch.sigmoid(pred_image + input_images[:, -1].unsqueeze(1)) # possible problem for cost model
-            pred_state = pred_state + input_states[:, -1]
+            if not self.use_kinetic_model:
+                pred_state = pred_state + input_states[:, -1]
+            else:
+                pred_state = self.state_predictor(input_states[:, -1], actions[:, t], self.stats)
 
             input_images = torch.cat((input_images[:, 1:], pred_image), 1)
             input_states = torch.cat((input_states[:, 1:], pred_state.unsqueeze(1)), 1)
@@ -942,7 +957,7 @@ class DeterministicPolicy(nn.Module):
         a = self.fc(h).view(bsize, self.n_outputs)
 
         # limit a into [-1,1]
-        a = nn.Tanh()(a)
+        # a = 5 * nn.Tanh()(a)
 
         if normalize_outputs:  # done only at inference time, if only "volatile" was still a thing...
             a = a.data
@@ -1053,3 +1068,62 @@ class PolicyMDN(nn.Module):
 
         return pi, mu, sigma, a
 
+def predict_states(states, actions, stats, timestep=0.1):
+    """
+    Args:
+        - states : tensor of shape [batch size, 4]
+        - actions : tensor of shape [batch size, 2]
+        - stats : dataset statistics for unnormalization
+        - timestep : the time delta between two consecutive states
+    """
+    states = states.clone()
+    actions = actions.clone()
+    device = states.device
+
+    ss_std = (1e-8 + stats["s_std"][0].view(1, 5).expand(states.size())).to(
+        device
+    )
+    ss_mean = stats["s_mean"][0].view(1, 5).expand(states.size()).to(device)
+    aa_std = (1e-8 + stats["a_std"][0].view(1, 2)).to(device)
+    aa_mean = stats["a_mean"][0].view(1, 2).to(device)
+
+    actions = actions * aa_std + aa_mean
+    states = states * ss_std + ss_mean
+
+    a = actions[:, 0]
+    b = actions[:, 1].unsqueeze(1)
+
+    positions = states[:, :2]
+
+    speeds_norm = states[:, 4].unsqueeze(1)
+
+    directions = states[:, 2:4]
+
+    directions = directions / directions.norm(dim=1).unsqueeze(1)
+
+    new_positions = positions + timestep * directions * speeds_norm
+
+    ortho_directions = torch.stack(
+        [directions[:, 1], -directions[:, 0]], axis=1
+    )
+
+    new_directions_unnormed = (
+        directions + ortho_directions * b * speeds_norm * timestep
+    )
+    # + torch.tensor([1e-6, 0]).unsqueeze(0).to(directions.device)
+
+    new_directions = new_directions_unnormed / (
+        torch.clamp(
+            new_directions_unnormed.norm(dim=1).view(positions.shape[0], 1),
+            min=1e-8,
+            max=1e6,
+        )
+    )
+
+    new_speeds_norm = speeds_norm + a.unsqueeze(1) * timestep
+
+    new_states = torch.cat([new_positions, new_directions, new_speeds_norm], 1)
+    new_states = new_states - ss_mean
+    new_states = new_states / ss_std
+
+    return new_states

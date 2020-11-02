@@ -68,7 +68,8 @@ class Car:
     SCALE = SCALE
     LANE_W = LANE_W
 
-    def __init__(self, lanes, free_lanes, dt, car_id, look_ahead, screen_w, font, policy_type, policy_network=None):
+    def __init__(self, lanes, free_lanes, dt, car_id, look_ahead, screen_w, font, policy_type, policy_network=None,
+                 use_kinetic_model=False):
         """
         Initialise a sedan on a random lane
         :param lanes: tuple of lanes, with ``min`` and ``max`` y coordinates
@@ -117,6 +118,7 @@ class Car:
         self.policy_network = policy_network
         self.is_controlled = False
         self.collisions_per_frame = 0
+        self.use_kinetic_model = use_kinetic_model
 
     @staticmethod
     def get_text(n, font):
@@ -125,11 +127,17 @@ class Car:
         return text, text_rect
 
     def get_state(self):
-        state = torch.zeros(4)
-        state[0] = self._position[0]  # x
-        state[1] = self._position[1]  # y
-        state[2] = self._direction[0] * self._speed  # dx/dt
-        state[3] = self._direction[1] * self._speed  # dy/dt
+        if self.use_kinetic_model:
+            state = torch.zeros(3)
+            state[2] = self._direction[0]  # * self._speed  # dx/dt
+            state[3] = self._direction[1]  # * self._speed  # dy/dt
+            state[4] = self._speed  # dy/dt
+        else:
+            state = torch.zeros(4)
+            state[0] = self._position[0]  # x
+            state[1] = self._position[1]  # y
+            state[2] = self._direction[0] * self._speed  # dx/dt
+            state[3] = self._direction[1] * self._speed  # dy/dt
         return state
 
     def compute_cost(self, other):
@@ -719,7 +727,7 @@ class Simulator(core.Env):
                  policy_type='hardcoded', nb_states=0, data_dir='', normalise_action=False, normalise_state=False,
                  return_reward=False, gamma=0.99, show_frame_count=True, store_simulator_video=False,
                  draw_colored_lane=False, colored_lane=None, draw_speed_map=False, speed_map=None,
-                 draw_position_threshold=1, offroad_map=None):
+                 draw_position_threshold=1, offroad_map=None, use_kinetic_model=False):
 
         # Observation spaces definition
         self.observation_space = spaces.Box(low=-1, high=1, shape=(nb_states, STATE_D + STATE_C * STATE_H * STATE_W),
@@ -785,6 +793,7 @@ class Simulator(core.Env):
         self.speed_map = speed_map
         self.draw_position_threshold = draw_position_threshold
         self.offroad_map = offroad_map
+        self.use_kinetic_model = use_kinetic_model
 
     def seed(self, seed=None):
         self.random.seed(seed)
@@ -873,7 +882,7 @@ class Simulator(core.Env):
             if free_lanes:
                 car = self.EnvCar(self.lanes, free_lanes, self.delta_t, self.next_car_id,
                                   self.look_ahead, self.screen_size[0], self.font[20], policy_type=self.policy_type,
-                                  policy_network=self.policy_network)
+                                  policy_network=self.policy_network, use_kinetic_model=self.use_kinetic_model)
                 self.next_car_id += 1
                 self.vehicles.append(car)
                 for l in car.get_lane_set(self.lanes):
