@@ -159,7 +159,10 @@ class Car:
         n_cars = 1 + 6  # this car + 6 neighbors
         obs = torch.zeros(n_cars, 2, 2)
         mask = torch.zeros(n_cars)
-        obs = obs.view(n_cars, 4)
+        if not self.use_kinetic_model:
+            obs = obs.view(n_cars, 4)
+        else:
+            obs = obs.view(n_cars, 3)
         cost = 0
 
         v_state = self.get_state()
