@@ -38,7 +38,7 @@ class I80Car(Car):
         self._width = df.at[df.index[0], 'Vehicle Width'] * FOOT * SCALE
         self.id = df.at[df.index[0], 'Vehicle ID']  # extract scalar <'Vehicle ID'> <at> <index[0]>
         self.use_kinetic_model = use_kinetic_model
-        
+
         # X and Y are swapped in the I-80 data set...
         x = df['Local Y'].rolling(window=k).mean().shift(1 - k).values * FOOT * SCALE - self.X_OFFSET - self._length
         y = df['Local X'].rolling(window=k).mean().shift(1 - k).values * FOOT * SCALE + y_offset
@@ -379,7 +379,7 @@ class I80(Simulator):
                 if len(car_df) < self.smoothing_window + 1: continue
                 f = self.font[20] if self.display else None
                 car = self.EnvCar(car_df, self.offset, self.look_ahead, self.screen_size[0], f, self.smoothing_window,
-                                  dt=self.delta_t)
+                                  dt=self.delta_t, use_kinetic_model=self.use_kinetic_model)
                 self.vehicles.append(car)
                 if self.controlled_car and \
                         not self.controlled_car['locked'] and \
@@ -396,7 +396,7 @@ class I80(Simulator):
                     # system(f'mkdir -p screen-dumps/{self.dump_folder}')
                     if self.store_sim_video:
                         self.ghost = self.EnvCar(car_df, self.offset, self.look_ahead, self.screen_size[0], f,
-                                                 self.smoothing_window, dt=self.delta_t)
+                                                 self.smoothing_window, dt=self.delta_t, use_kinetic_model=self.use_kinetic_model)
             self.vehicles_history |= vehicles  # union set operation
 
         self.lane_occupancy = [[] for _ in range(7)]
