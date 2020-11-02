@@ -30,15 +30,15 @@ class I80Car(Car):
     max_a = 40
     max_b = 0.01
 
-    def __init__(self, df, y_offset, look_ahead, screen_w, lanes, free_lanes, car_id, policy_type, font=None, kernel=0,
-                 dt=1 / 10, use_kinetic_model=False):
-        super().__init__(lanes, free_lanes, dt, car_id, look_ahead, screen_w, font, policy_type,
-                         use_kinetic_model=use_kinetic_model)
+    def __init__(self, df, y_offset, look_ahead, screen_w, font=None, kernel=0, dt=1 / 10, use_kinetic_model=False):
+        # super().__init__(lanes, free_lanes, dt, car_id, look_ahead, screen_w, font, policy_type,
+        #                  use_kinetic_model=use_kinetic_model)
         k = kernel  # running window size
         self._length = df.at[df.index[0], 'Vehicle Length'] * FOOT * SCALE
         self._width = df.at[df.index[0], 'Vehicle Width'] * FOOT * SCALE
         self.id = df.at[df.index[0], 'Vehicle ID']  # extract scalar <'Vehicle ID'> <at> <index[0]>
-
+        self.use_kinetic_model = use_kinetic_model
+        
         # X and Y are swapped in the I-80 data set...
         x = df['Local Y'].rolling(window=k).mean().shift(1 - k).values * FOOT * SCALE - self.X_OFFSET - self._length
         y = df['Local X'].rolling(window=k).mean().shift(1 - k).values * FOOT * SCALE + y_offset
