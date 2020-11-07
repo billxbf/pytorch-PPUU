@@ -726,8 +726,13 @@ class FwdCNN_VAE(nn.Module):
             else:
                 pred_state = self.state_predictor(input_states[:, -1], actions[:, t], self.stats)
 
-            input_images = torch.cat((input_images[:, 1:], pred_image), 1)
-            input_states = torch.cat((input_states[:, 1:], pred_state.unsqueeze(1)), 1)
+            if random.random()<=self.opt.replace_rate:
+                target_images, target_states, _ = targets
+                input_images = torch.cat((input_images[:, 1:], target_images[:, t].unsqueeze(1).contiguous()), 1)
+                input_states = torch.cat((input_states[:, 1:], target_states[:, t].unsqueeze(1).contiguous()), 1)
+            else:
+                input_images = torch.cat((input_images[:, 1:], pred_image), 1)
+                input_states = torch.cat((input_states[:, 1:], pred_state.unsqueeze(1)), 1)
             pred_images.append(pred_image)
             pred_states.append(pred_state)
 
