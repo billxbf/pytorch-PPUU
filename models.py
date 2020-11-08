@@ -1085,10 +1085,10 @@ def predict_states(states, actions, stats, timestep=0.1):
     actions = actions.clone()
     device = states.device
 
-    ss_std = (1e-8 + stats["s_std"][0].view(1, 5).expand(states.size())).to(
+    ss_std = (1e-8 + stats["s_std"][0].view(1, 3).expand(states.size())).to(
         device
     )
-    ss_mean = stats["s_mean"][0].view(1, 5).expand(states.size()).to(device)
+    ss_mean = stats["s_mean"][0].view(1, 3).expand(states.size()).to(device)
     aa_std = (1e-8 + stats["a_std"][0].view(1, 2)).to(device)
     aa_mean = stats["a_mean"][0].view(1, 2).to(device)
 
