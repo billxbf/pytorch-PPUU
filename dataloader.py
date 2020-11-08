@@ -325,7 +325,7 @@ class DataLoader:
 
     def normalise_state_vector(self, states):
         if self.use_kinetic_model:
-            shape = (1, 1, 3) if states.dim() == 3 else (1, 3)  # dim = 3: state sequence, dim = 2: single state
+            shape = (1, 1, 5) if states.dim() == 5 else (1, 5)  # dim = 3: state sequence, dim = 2: single state
             states -= self.s_mean.view(*shape).expand(states.size()).to(states.device)
             states /= (1e-8 + self.s_std.view(*shape).expand(states.size())).to(states.device)
         else:

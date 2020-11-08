@@ -128,10 +128,12 @@ class Car:
 
     def get_state(self):
         if self.use_kinetic_model:
-            state = torch.zeros(3)
-            state[0] = self._direction[0]  # * self._speed  # dx/dt
-            state[1] = self._direction[1]  # * self._speed  # dy/dt
-            state[2] = self._speed  # dy/dt
+            state = torch.zeros(5)
+            state[0] = self._position[0]  # x
+            state[1] = self._position[1]  # y
+            state[2] = self._direction[0]  # * self._speed  # dx/dt
+            state[3] = self._direction[1]  # * self._speed  # dy/dt
+            state[4] = self._speed  # dy/dt
         else:
             state = torch.zeros(4)
             state[0] = self._position[0]  # x

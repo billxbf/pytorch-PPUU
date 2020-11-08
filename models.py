@@ -1085,12 +1085,12 @@ def predict_states(states, actions, stats, timestep=0.1):
     actions = actions.clone()
     device = states.device
 
-    ss_std = (1e-8 + stats["s_std"].view(1, 3).expand(states.size())).to(
+    ss_std = (1e-8 + stats["s_std"][0].view(1, 5).expand(states.size())).to(
         device
     )
-    ss_mean = stats["s_mean"].view(1, 3).expand(states.size()).to(device)
-    aa_std = (1e-8 + stats["a_std"].view(1, 2)).to(device)
-    aa_mean = stats["a_mean"].view(1, 2).to(device)
+    ss_mean = stats["s_mean"][0].view(1, 5).expand(states.size()).to(device)
+    aa_std = (1e-8 + stats["a_std"][0].view(1, 2)).to(device)
+    aa_mean = stats["a_mean"][0].view(1, 2).to(device)
 
     actions = actions * aa_std + aa_mean
     states = states * ss_std + ss_mean
@@ -1098,14 +1098,18 @@ def predict_states(states, actions, stats, timestep=0.1):
     a = actions[:, 0]
     b = actions[:, 1].unsqueeze(1)
 
-    speeds_norm = states[:, 2].unsqueeze(1)
+    positions = states[:, :2]
 
-    directions = states[:, 0:2]
+    speeds_norm = states[:, 4].unsqueeze(1)
+
+    directions = states[:, 2:4]
 
     directions = directions / directions.norm(dim=1).unsqueeze(1)
 
+    new_positions = positions + timestep * directions * speeds_norm
+
     ortho_directions = torch.stack(
-        [directions[:, 1], -directions[:, 0]], axis=1
+        [directions[:, 1], -directions[:, 0]], dim=1
     )
 
     new_directions_unnormed = (
@@ -1115,7 +1119,7 @@ def predict_states(states, actions, stats, timestep=0.1):
 
     new_directions = new_directions_unnormed / (
         torch.clamp(
-            new_directions_unnormed.norm(dim=1).view(directions.shape[0], 1),
+            new_directions_unnormed.norm(dim=1).view(positions.shape[0], 1),
             min=1e-8,
             max=1e6,
         )
@@ -1123,7 +1127,7 @@ def predict_states(states, actions, stats, timestep=0.1):
 
     new_speeds_norm = speeds_norm + a.unsqueeze(1) * timestep
 
-    new_states = torch.cat([new_directions, new_speeds_norm], 1)
+    new_states = torch.cat([new_positions, new_directions, new_speeds_norm], 1)
     new_states = new_states - ss_mean
     new_states = new_states / ss_std
 
