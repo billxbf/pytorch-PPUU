@@ -6,11 +6,11 @@
 #SBATCH --time=12:00:00
 #SBATCH --cpus-per-task=4
 #SBATCH --nodes=1
-#SBATCH --mem=1gb
+#SBATCH --mem=10gb
 #SBATCH --mail-type=END,FAIL # notifications for job done & fail
 
 . ~/.bashrc
-conda activate drive
+conda activate PPUU
 
 cd ../
 python -u generate_trajectories.py \
@@ -18,4 +18,4 @@ python -u generate_trajectories.py \
     -time_slot $t \
     -colored_lane $colored_lane \
     -data_dir $data_dir \
-    -offroad_map 75g1actrajectory.jpg
+    -offroad_map 15g1actrajectory_offroad.png
