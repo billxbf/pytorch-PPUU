@@ -1109,7 +1109,7 @@ def predict_states(states, actions, stats, timestep=0.1):
     new_positions = positions + timestep * directions * speeds_norm
 
     ortho_directions = torch.stack(
-        [directions[:, 1], -directions[:, 0]], axis=1
+        [directions[:, 1], -directions[:, 0]], dim=1
     )
 
     new_directions_unnormed = (

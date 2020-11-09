@@ -49,7 +49,7 @@ parser.add_argument('-use_speed_map', type=bool, default=False)
 parser.add_argument('-ksize', type=int, default=7, help='kernel size for blurring')
 parser.add_argument('-position_threshold', type=int, default=1, help='threshold for position cost')
 parser.add_argument('-use_kinetic_model', type=bool, default=False)
-parser.add_argument('replace_rate', type=float, default=0.0)
+parser.add_argument('-replace_rate', type=float, default=0.0)
 opt = parser.parse_args()
 
 os.system('mkdir -p ' + opt.model_dir)
