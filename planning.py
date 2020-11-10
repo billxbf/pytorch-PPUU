@@ -235,7 +235,7 @@ def plan_actions_backprop(model, input_images, input_states, car_sizes, npred=50
         optimizer_a.load_state_dict(model.optimizer_a_stats)
 
     gamma_mask = torch.from_numpy(
-        numpy.array([0.99 ** t for t in range(npred + 1)])
+        numpy.array([0.999 ** t for t in range(npred + 1)])
     ).float().cuda().unsqueeze(0).expand(n_futures, npred + 1)
 
     for i in range(bprop_niter):
@@ -399,7 +399,7 @@ def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampli
                 # print(f'[z opt | iter: {k} | pred cost: {pred_cost_adv.mean().item()}]')
                 print(f'[z opt | iter: {k} | pred cost: {pred_cost_adv.mean().item()} | u_cost: {total_u_loss.mean().item()}]')
 
-    gamma_mask = torch.tensor([0.99 ** t for t in range(npred + 1)]).cuda().unsqueeze(0)
+    gamma_mask = torch.tensor([0.999 ** t for t in range(npred + 1)]).cuda().unsqueeze(0)
     if not hasattr(model, 'cost'):
         # ipdb.set_trace()
         proximity_cost, _ = utils.proximity_cost(pred_images[:, :, :n_channels].contiguous(), pred_states.data, car_sizes,
