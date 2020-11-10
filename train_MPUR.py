@@ -38,8 +38,6 @@ if torch.cuda.is_available() and opt.no_cuda:
     print('WARNING: You have a CUDA device, so you should probably run without -no_cuda')
 
 # load the model
-opt.mfile = f'model=fwd-cnn-vae-fp-layers=3-bsize=64-ncond=20-npred=20-lrt=0.0001-nfeature=256-dropout=0.1-nz=32-beta=1e-06' \
-            f'-zdropout=0.5-gclip=5.0-warmstart=0-seed=1-ksize={opt.ksize}-pt={opt.position_threshold}.model'
 model_path = path.join(opt.model_dir, opt.mfile)
 if path.exists(model_path):
     model = torch.load(model_path)
