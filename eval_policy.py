@@ -478,7 +478,7 @@ def main():
 
     # data
     opt.dataset = f"traffic-data/state-action-cost-{opt.ksize}-{opt.position_threshold}/data_i80_v0/"
-    opt.colored_lane = f"{opt.ksize}g{opt.position_threshold}actrajectory.jpg"
+    opt.colored_lane = f"{opt.ksize}g{opt.position_threshold}actrajectory.png"
     data_path = opt.dataset
 
     dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=True if hasattr(opt,'colored_lane') and opt.colored_lane else False,
