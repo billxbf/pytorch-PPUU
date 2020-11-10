@@ -189,7 +189,7 @@ def orientation_and_position_cost(images, states, pad, offroad_range, opt, car_s
     else:
         offroad = torch.ones_like(neighbourhood_array[:, :, 2])
     target_speed = None
-    if opt.use_speed_map:
+    if hasattr(opt,'use_speed_map') and opt.use_speed_map:
         target_speed = neighbourhood_array[:, :, 5]
     s = dmap.norm(2, 2)
     speed = speed.view(bsize, npred, 2).unsqueeze(dim=-1).unsqueeze(dim=-1)
