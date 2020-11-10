@@ -661,7 +661,7 @@ class FwdCNN_VAE(nn.Module):
         pred_image, pred_state = self.decoder(h)
         pred_image = torch.sigmoid(pred_image + input_images[:, -1].unsqueeze(1))
         # pred_state = torch.clamp(pred_state + input_states[:, -1], min=-6, max=6)
-        if not self.use_kinetic_model:
+        if not (self.use_kinetic_model if hasattr(self.opt,'use_kinetic_model') else False):
             pred_state = pred_state + input_states[:, -1]
         else:
             pred_state = self.state_predictor(input_states[:, -1], action, self.stats)
