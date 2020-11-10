@@ -80,9 +80,10 @@ opt.dataset = f"traffic-data/state-action-cost-{opt.ksize}-{opt.position_thresho
 stats = torch.load(opt.dataset+'data_stats.pth')
 model.stats = stats  # used by planning.py/compute_uncertainty_batch
 
-print('[loading speed stat]')
-speed_stats = torch.load('speed_stats.pth')
-model.stats['speed_max'] = speed_stats[0]
+if hasattr(model.opt,'use_speed_map') and model.opt.use_speed_map:
+    print('[loading speed stat]')
+    speed_stats = torch.load('speed_stats.pth')
+    model.stats['speed_max'] = speed_stats[0]
 
 if 'ten' in opt.mfile:
     p_z_file = opt.model_dir + opt.mfile + '.pz'
