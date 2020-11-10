@@ -200,7 +200,7 @@ def orientation_and_position_cost(images, states, pad, offroad_range, opt, car_s
     position_cost = -torch.log(torch.mean(torch.mean(v, dim=-1), dim=-1)*(1-math.exp(-1))+math.exp(-1)) + \
                     -torch.log(torch.mean(torch.mean(offroad, dim=-1), dim=-1)*(1-math.exp(-offroad_range))+math.exp(-offroad_range))
     speed_cost = torch.zeros_like(position_cost)
-    if opt.use_speed_map:
+    if hasattr(opt,'use_speed_map') and opt.use_speed_map:
         speed_cost = torch.mean(torch.mean(v, dim=-1), dim=-1)*torch.mean(torch.mean((torch.norm(speed, dim=2)/speed_max-target_speed)**2, dim=-1), dim=-1)
     return orientation_cost.view(bsize, npred), position_cost.view(bsize, npred), speed_cost.view(bsize, npred)
 
