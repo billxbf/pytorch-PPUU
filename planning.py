@@ -74,7 +74,7 @@ def compute_uncertainty_batch(model, input_images, input_states, actions, target
         n_channels = 4
         if model.opt.use_offroad_map:
             n_channels = 5
-        if model.opt.use_speed_map:
+        if hasattr(model.opt,'use_speed_map') and model.opt.use_speed_map:
             n_channels = 6
     else:
         n_channels = 3
@@ -103,7 +103,7 @@ def compute_uncertainty_batch(model, input_images, input_states, actions, target
                 unnormalize=True, s_mean=model.stats['s_mean'], s_std=model.stats['s_std'], pad=pad,
                 offroad_range=offroad_range, opt=model.opt, speed_max=model.stats['speed_max'] if hasattr(model.opt,'use_speed_map') and model.opt.use_speed_map else None)
             pred_costs += model.opt.lambda_o * orientation_cost + model.opt.lambda_l * position_cost
-            if model.opt.use_speed_map:
+            if hasattr(model.opt,'use_speed_map') and model.opt.use_speed_map:
                 pred_costs += model.opt.lambda_s * speed_cost
         else:
             lane_cost, prox_map_l = utils.lane_cost(pred_images, car_sizes_temp)
@@ -282,7 +282,7 @@ def plan_actions_backprop(model, input_images, input_states, car_sizes, npred=50
             orientation_loss = torch.mean(orientation_loss * gamma_mask[:, :npred])
             position_loss = torch.mean(position_loss * gamma_mask[:, :npred])
             loss = loss + lambda_l * position_loss + lambda_o * orientation_loss
-            if model.opt.use_speed_map:
+            if hasattr(model.opt,'use_speed_map') and model.opt.use_speed_map:
                 loss += model.opt.lambda_s * speed_loss
         else:
             lane_loss, prox_map_l = utils.lane_cost(pred_images, car_sizes.expand(n_futures, 2))
@@ -329,7 +329,7 @@ def train_policy_net_mpur(model, inputs, targets, car_sizes, n_models=10, sampli
         n_channels = 4
         if model.opt.use_offroad_map:
             n_channels = n_channels + 1
-        if model.opt.use_speed_map:
+        if hasattr(model.opt,'use_speed_map') and model.opt.use_speed_map:
             n_channels = n_channels + 1
     else:
         n_channels = 3
