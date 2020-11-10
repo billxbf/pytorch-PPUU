@@ -477,7 +477,6 @@ def main():
 
     # data
     opt.dataset = f"traffic-data/state-action-cost-{opt.ksize}-{opt.position_threshold}/data_i80_v0/"
-    opt.mfile = f"model=fwd-cnn-vae-fp-layers=3-bsize=64-ncond=20-npred=20-lrt=0.0001-nfeature=256-dropout=0.1-nz=32-beta=1e-06-zdropout=0.5-gclip=5.0-warmstart=0-seed=1-output_h=False-ksize={opt.ksize}-pt={opt.position_threshold}.model"
     opt.colored_lane = f"{opt.ksize}g{opt.position_threshold}actrajectory.jpg"
     data_path = opt.dataset
 

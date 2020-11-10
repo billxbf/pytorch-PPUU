@@ -3,21 +3,23 @@
 #SBATCH --job-name=eval_MPUR
 #SBATCH --output=logs/eval_MPUR_%j.out
 #SBATCH --error=logs/eval_MPUR_%j.err
-#SBATCH --time=48:00:00
-#SBATCH --gres gpu:1
-#SBATCH --constraint="gpu_12gb&pascal"
-#SBATCH --exclude="weaver1, weaver2, weaver3, weaver4, weaver5, vine5, vine11"
+#SBATCH --time=00:45:00
+#SBATCH --gres=gpu:1
 #SBATCH --cpus-per-task=7
-#SBATCH --qos=batch
 #SBATCH --nodes=1
-#SBATCH --mem=48000
-#SBATCH --mail-type=END,FAIL # notifications for job done & fail
+#SBATCH --mem=60000  # notifications for job done & fail
+#PRINCE PRINCE_GPU_COMPUTE_MODE=default
 
-eval "$(conda shell.bash hook)"
+. ~/.bashrc
 conda activate PPUU
+cd ..
 
-cd ../
-srun python eval_policy.py \
+python -u eval_policy.py \
+    -model_dir 'hmodels_fm_pred_30/' \
     -method policy-MPUR \
     -policy_model $policy \
-    -save_grad_vid
+    -colored_lane trajectory.jpg \
+    -offroad_map 15g1actrajectory_offroad.png \
+    -ksize $ksize \
+    -position_threshold $position_threshold \
+    -mfile $mfile
