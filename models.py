@@ -84,7 +84,7 @@ class encoder(nn.Module):
     def forward(self, images, states=None, actions=None):
         bsize = images.size(0)
         h = self.f_encoder(images.view(bsize, self.n_inputs * self.n_channels, self.opt.height, self.opt.width))
-        if states is not None and not self.use_kinetic_model:
+        if states is not None and not hasattr(self.opt, "use_kinetic_model") and not self.use_kinetic_model:
             h = h + self.s_encoder(states.contiguous().view(bsize, -1)).view(h.size())
         if actions is not None:
             a = self.a_encoder(actions.contiguous().view(bsize, self.a_size))
@@ -208,7 +208,7 @@ class decoder(nn.Module):
     def forward(self, h):
         bsize = h.size(0)
         h = h.view(bsize, self.feature_maps[-1], self.opt.h_height, self.opt.h_width)
-        if not self.use_kinetic_model:
+        if not hasattr(self.opt, "use_kinetic_model") and not self.use_kinetic_model:
             h_reduced = self.h_reducer(h).view(bsize, -1)
             pred_state = self.s_predictor(h_reduced)
         else:
