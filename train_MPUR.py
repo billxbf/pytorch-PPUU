@@ -51,7 +51,6 @@ if not hasattr(model.encoder, 'n_channels'):
     model.encoder.n_channels = 3
 model.opt.lambda_l = opt.lambda_l  # used by planning.py/compute_uncertainty_batch
 model.opt.lambda_o = opt.lambda_o  # used by planning.py/compute_uncertainty_batch
-model.opt.lambda_s = opt.lambda_s  # used by planning.py/compute_uncertainty_batch
 if opt.value_model != '':
     value_function = torch.load(path.join(opt.model_dir, 'value_functions', opt.value_model)).to(opt.device)
     model.value_function = value_function
@@ -71,7 +70,7 @@ else:
     model.create_policy_net(opt)
     optimizer = optim.Adam(model.policy_net.parameters(), opt.lrt)  # POLICY optimiser ONLY!
     n_iter = 0
-scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50_000/opt.epoch_size, gamma=0.1)
+scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=80_000/opt.epoch_size, gamma=0.1)
 
 # data
 opt.dataset = f"traffic-data/state-action-cost-{opt.ksize}-{opt.position_threshold}/data_i80_v0/"
@@ -79,11 +78,6 @@ opt.dataset = f"traffic-data/state-action-cost-{opt.ksize}-{opt.position_thresho
 # Load normalisation stats
 stats = torch.load(opt.dataset+'data_stats.pth')
 model.stats = stats  # used by planning.py/compute_uncertainty_batch
-
-if hasattr(model.opt,'use_speed_map') and model.opt.use_speed_map:
-    print('[loading speed stat]')
-    speed_stats = torch.load('speed_stats.pth')
-    model.stats['speed_max'] = speed_stats[0]
 
 if 'ten' in opt.mfile:
     p_z_file = opt.model_dir + opt.mfile + '.pz'
@@ -111,7 +105,6 @@ if opt.learned_cost!= 'False':
 
 dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=model.opt.use_colored_lane,
                             use_offroad_map=model.opt.use_offroad_map if hasattr(model.opt,'use_offroad_map') else False,
-                        use_speed_map=model.opt.use_speed_map if hasattr(model.opt,'use_speed_map') else False,
                         use_kinetic_model=model.opt.use_kinetic_model if hasattr(model.opt,'use_kinetic_model') else False)
 model.train()
 model.opt.u_hinge = opt.u_hinge
@@ -166,8 +159,7 @@ def start(what, nbatches, npred, track=False, pad=1, offroad_range=1.0):
                              opt.u_reg * pred['uncertainty'] + \
                              opt.lambda_o * pred['orientation'] + \
                              opt.lambda_a * pred['action'] + \
-                             opt.lambda_l * pred['position'] + \
-                             opt.lambda_s * pred['speed']
+                             opt.lambda_l * pred['position']
         else:
             pred['policy'] = pred['proximity'] + \
                              opt.u_reg * pred['uncertainty'] + \
@@ -241,7 +233,6 @@ if opt.use_colored_lane:
         p='proximity',
         c='position',
         o='orientation',
-        s='speed',
         u='uncertainty',
         a='action',
         π='policy',

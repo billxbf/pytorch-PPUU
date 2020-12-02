@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 
 class DataLoader:
     def __init__(self, fname, opt, dataset='simulator', single_shard=False, use_colored_lane=False,
-                 use_offroad_map=False, use_speed_map=False, use_kinetic_model=False):
+                 use_offroad_map=False, use_kinetic_model=False, iterate_all=False):
         if opt.debug:
             single_shard = True
         self.opt = opt
@@ -32,14 +32,11 @@ class DataLoader:
         self.ego_car_images = []
         self.use_colored_lane = use_colored_lane
         self.use_offroad_map = use_offroad_map
-        self.use_speed_map = use_speed_map
         self.use_kinetic_model = use_kinetic_model
         if use_colored_lane:
             self.lane_images = []
             if use_offroad_map:
                 self.offroad_images = []
-            if use_speed_map:
-                self.speed_images = []
         for df in data_files:
             combined_data_path = f'{data_dir}/{df}/all_data.pth'
             if os.path.isfile(combined_data_path):
@@ -55,8 +52,6 @@ class DataLoader:
                     self.lane_images += data.get('lane_images')
                     if use_offroad_map:
                         self.offroad_images += data.get('offroad_images')
-                    if use_speed_map:
-                        self.speed_images += data.get('speed_images')
             else:
                 print(data_dir)
                 images = []
@@ -68,13 +63,10 @@ class DataLoader:
                 ego_car_images = []
                 lane_images = None
                 offroad_images = None
-                speed_images = None
                 if use_colored_lane:
                     lane_images = []
                     if use_offroad_map:
                         offroad_images = []
-                    if use_speed_map:
-                        speed_images = []
                 for f in ids:
                     print(f'[loading {f}]')
                     fd = pickle.load(open(f, 'rb'))
@@ -103,8 +95,6 @@ class DataLoader:
                         lane_images.append(fd['lane_images'])
                         if use_offroad_map:
                             offroad_images.append(fd['offroad_images'])
-                        if use_speed_map:
-                            speed_images.append(fd['speed_images'])
 
                 print(f'Saving {combined_data_path} to disk')
                 torch.save({
@@ -115,8 +105,7 @@ class DataLoader:
                     'ids': ids,
                     'ego_car': ego_car_images,
                     'lane_images': lane_images,
-                    'offroad_images': offroad_images,
-                    'speed_images': speed_images
+                    'offroad_images': offroad_images
                 }, combined_data_path)
                 self.images += images
                 self.actions += actions
@@ -128,8 +117,6 @@ class DataLoader:
                     self.lane_images += lane_images
                     if use_offroad_map:
                         self.offroad_images += offroad_images
-                    if use_speed_map:
-                        self.speed_images += speed_images
 
         self.n_episodes = len(self.images)
         print(f'Number of episodes: {self.n_episodes}')
@@ -186,7 +173,8 @@ class DataLoader:
         car_sizes_path = data_dir + '/car_sizes.pth'
         print(f'[loading car sizes: {car_sizes_path}]')
         self.car_sizes = torch.load(car_sizes_path)
-        self.index=0
+        self.current_index=0
+        self.iterate_all=iterate_all
 
 
     # get batch to use for forward modeling
@@ -203,7 +191,7 @@ class DataLoader:
             indx = self.valid_indx
         elif split == 'test':
             indx = self.test_indx
-
+        self.current_index=len(indx)
         if npred == -1:
             npred = self.opt.npred
 
@@ -212,39 +200,62 @@ class DataLoader:
             lane_images = []
             if self.use_offroad_map:
                 offroad_images = []
-            if self.use_speed_map:
-                speed_images = []
         nb = 0
         T = self.opt.ncond + npred
-        while nb < self.opt.batch_size:
-            if test_data:
-                s = self.index
-            else:
-                s = self.random.choice(indx)
-            # min is important since sometimes numbers do not align causing issues in stack operation below
-            episode_length = min(self.images[s].size(0), self.states[s].size(0))
-            if episode_length >= T:
-                t = self.random.randint(0, episode_length - T)
-                images.append(self.images[s][t : t + T].to(device))
-                actions.append(self.actions[s][t : t + T].to(device))
-                states.append(self.states[s][t : t + T, 0].to(device))  # discard 6 neighbouring cars
-                costs.append(self.costs[s][t : t + T].to(device))
-                ids.append(self.ids[s])
-                ego_cars.append(self.ego_car_images[s].to(device))
-                if self.use_colored_lane:
-                    lane_images.append(self.lane_images[s][t: t + T].to(device))
-                    if self.use_offroad_map:
-                        offroad_images.append(self.offroad_images[s][t: t + T].to(device))
-                    if self.use_speed_map:
-                        speed_images.append(self.speed_images[s][t: t + T].to(device))
-                splits = self.ids[s].split('/')
-                time_slot = splits[-2]
-                car_id = int(re.findall(r'car(\d+).pkl', splits[-1])[0])
-                size = self.car_sizes[time_slot][car_id]
-                sizes.append([size[0], size[1]])
-                nb += 1
-            if test_data:
-                self.index+=1
+        if self.iterate_all is False:
+            while nb < self.opt.batch_size:
+                if test_data:
+                    s = self.current_index
+                else:
+                    s = self.random.choice(indx)
+                # min is important since sometimes numbers do not align causing issues in stack operation below
+                episode_length = min(self.images[s].size(0), self.states[s].size(0))
+                if episode_length >= T:
+                    t = self.random.randint(0, episode_length - T)
+                    images.append(self.images[s][t : t + T].to(device))
+                    actions.append(self.actions[s][t : t + T].to(device))
+                    states.append(self.states[s][t : t + T, 0].to(device))  # discard 6 neighbouring cars
+                    costs.append(self.costs[s][t : t + T].to(device))
+                    ids.append(self.ids[s])
+                    ego_cars.append(self.ego_car_images[s].to(device))
+                    if self.use_colored_lane:
+                        lane_images.append(self.lane_images[s][t: t + T].to(device))
+                        if self.use_offroad_map:
+                            offroad_images.append(self.offroad_images[s][t: t + T].to(device))
+                    splits = self.ids[s].split('/')
+                    time_slot = splits[-2]
+                    car_id = int(re.findall(r'car(\d+).pkl', splits[-1])[0])
+                    size = self.car_sizes[time_slot][car_id]
+                    sizes.append([size[0], size[1]])
+                    nb += 1
+                if test_data:
+                    self.current_index+=1
+        else:
+            while nb < self.opt.batch_size:
+                if self.current_index==len(indx):
+                    self.random.shuffle(indx)
+                    self.current_index=0
+                    s =indx[self.current_index]
+                episode_length = min(self.images[s].size(0), self.states[s].size(0))
+                if episode_length >= T:
+                    t = self.random.randint(0, episode_length - T)
+                    images.append(self.images[s][t: t + T].to(device))
+                    actions.append(self.actions[s][t: t + T].to(device))
+                    states.append(self.states[s][t: t + T, 0].to(device))  # discard 6 neighbouring cars
+                    costs.append(self.costs[s][t: t + T].to(device))
+                    ids.append(self.ids[s])
+                    ego_cars.append(self.ego_car_images[s].to(device))
+                    if self.use_colored_lane:
+                        lane_images.append(self.lane_images[s][t: t + T].to(device))
+                        if self.use_offroad_map:
+                            offroad_images.append(self.offroad_images[s][t: t + T].to(device))
+                    splits = self.ids[s].split('/')
+                    time_slot = splits[-2]
+                    car_id = int(re.findall(r'car(\d+).pkl', splits[-1])[0])
+                    size = self.car_sizes[time_slot][car_id]
+                    sizes.append([size[0], size[1]])
+                    nb += 1
+                self.current_index+=1
         # Pile up stuff
         images  = torch.stack(images)
         states  = torch.stack(states)
@@ -260,11 +271,6 @@ class DataLoader:
                 images = torch.cat([images, offroad_images[:, :, 2, :, :].unsqueeze(dim=2)],
                                    dim=2)  # Only use blue channel
                 del offroad_images
-            if self.use_speed_map:
-                speed_images = torch.stack(speed_images)
-                images = torch.cat([images, speed_images[:, :, 0, :, :].unsqueeze(dim=2)],
-                                   dim=2)  # Only use blue channel
-                del speed_images
         # Normalise actions, state_vectors, state_images
         if not self.opt.debug and not test_data:
             actions = self.normalise_action(actions)

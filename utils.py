@@ -167,7 +167,7 @@ def proximity_cost(images, states, car_size=(6.4, 14.3), green_channel=1, unnorm
     return costs.view(bsize, npred), proximity_mask
 
 def orientation_and_position_cost(images, states, pad, offroad_range, opt, car_size=(6.4, 14.3), unnormalize=False,
-                                  s_mean=None, s_std=None, speed_max=None):
+                                  s_mean=None, s_std=None):
     SCALE = 0.25
     bsize, npred, nchannels, crop_h, crop_w = images.size()
     images = images.view(bsize * npred, nchannels, crop_h, crop_w)
@@ -188,9 +188,6 @@ def orientation_and_position_cost(images, states, pad, offroad_range, opt, car_s
         offroad = neighbourhood_array[:, :, 4]
     else:
         offroad = torch.ones_like(neighbourhood_array[:, :, 2])
-    target_speed = None
-    if hasattr(opt,'use_speed_map') and opt.use_speed_map:
-        target_speed = neighbourhood_array[:, :, 5]
     s = dmap.norm(2, 2)
     speed = speed.view(bsize, npred, 2).unsqueeze(dim=-1).unsqueeze(dim=-1)
     cosdis = (speed[:, :, 0] * dmap[:, :, 0] + speed[:, :, 1] * dmap[:, :, 1]) / (2 * speed.norm(2, 2) * dmap.norm(2, 2) + 1e-6)
@@ -199,10 +196,7 @@ def orientation_and_position_cost(images, states, pad, offroad_range, opt, car_s
                           dim=2)[0])**2, dim=-1), dim=-1)
     position_cost = -torch.log(torch.mean(torch.mean(v, dim=-1), dim=-1)*(1-math.exp(-1))+math.exp(-1)) + \
                     -torch.log(torch.mean(torch.mean(offroad, dim=-1), dim=-1)*(1-math.exp(-offroad_range))+math.exp(-offroad_range))
-    speed_cost = torch.zeros_like(position_cost)
-    if hasattr(opt,'use_speed_map') and opt.use_speed_map:
-        speed_cost = torch.mean(torch.mean(v, dim=-1), dim=-1)*torch.mean(torch.mean((torch.norm(speed, dim=2)/speed_max-target_speed)**2, dim=-1), dim=-1)
-    return orientation_cost.view(bsize, npred), position_cost.view(bsize, npred), speed_cost.view(bsize, npred)
+    return orientation_cost.view(bsize, npred), position_cost.view(bsize, npred)
 
 def parse_car_path(path):
     splits = path.split('/')
@@ -589,8 +583,6 @@ def parse_command_line(parser=None):
     parser.add_argument('-ksize', type=int, default=7, help='kernel size for blurring')
     parser.add_argument('-position_threshold', type=int, default=1, help='threshold for position cost')
     parser.add_argument('-offroad_range', type=float, default=0.0, help='The range of offroad cost')
-    parser.add_argument('-use_speed_map', type=bool, default=False, help='use speed channel for forward model')
-    parser.add_argument('-lambda_s', type=float, default=0.0, help='speed')
     opt = parser.parse_args()
     opt.n_inputs = 4
     opt.n_actions = 2
@@ -630,8 +622,6 @@ def build_model_file_name(opt):
         opt.model_file += f'-pt={opt.position_threshold}'
     if opt.use_offroad_map:
         opt.model_file += f'-range={opt.offroad_range}'
-    if opt.use_speed_map:
-        opt.model_file += f'-lambdas={opt.lambda_s}'
     if opt.value_model == '':
         opt.model_file += '-novalue'
 

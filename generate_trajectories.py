@@ -22,7 +22,6 @@ parser.add_argument('-time_slot', type=int, default=0)
 parser.add_argument('-map', type=str, default='i80', choices={'ai', 'i80', 'us101', 'lanker', 'peach'})
 parser.add_argument('-delta_t', type=float, default=0.1)
 parser.add_argument('-colored_lane', type=str, default=None)
-parser.add_argument('-speed_map', type=str, default=None)
 parser.add_argument('-offroad_map', type=str, default=None)
 parser.add_argument('-use_kinetic_model', type=bool, default=False)
 opt = parser.parse_args()
@@ -46,7 +45,6 @@ kwargs = dict(
     data_dir=opt.data_dir,
     delta_t=opt.delta_t,
     colored_lane=opt.colored_lane,
-    speed_map=opt.speed_map,
     offroad_map=opt.offroad_map,
     use_kinetic_model=opt.use_kinetic_model
 )

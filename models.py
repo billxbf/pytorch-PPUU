@@ -24,8 +24,6 @@ class encoder(nn.Module):
             self.n_channels = self.n_channels + 1
             if hasattr(self.opt, "use_offroad_map") and self.opt.use_offroad_map:
                 self.n_channels = self.n_channels + 1
-            if hasattr(self.opt, "use_speed_map") and self.opt.use_speed_map:
-                self.n_channels = self.n_channels + 1
         # frame encoder
         if opt.layers == 3:
             assert(opt.nfeature % 4 == 0)
@@ -138,8 +136,6 @@ class decoder(nn.Module):
         if self.opt.use_colored_lane:
             self.n_channels = 4
             if hasattr(self.opt, "use_offroad_map") and self.opt.use_offroad_map:
-                self.n_channels = self.n_channels + 1
-            if hasattr(self.opt, "use_speed_map") and self.opt.use_speed_map:
                 self.n_channels = self.n_channels + 1
         self.use_kinetic_model = self.opt.use_kinetic_model if hasattr(self.opt, "use_kinetic_model") else False
 

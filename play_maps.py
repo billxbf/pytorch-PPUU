@@ -12,7 +12,7 @@ parser.add_argument('-nb_episodes', type=int, default=1)
 parser.add_argument('-fps', type=int, default=1e3)
 parser.add_argument('-delta_t', type=float, default=0.1)
 parser.add_argument('-draw_colored_lane', type=bool, default=False)
-parser.add_argument('-draw_speed_map', type=bool, default=False)
+parser.add_argument('-draw_stop_region', type=bool, default=False)
 parser.add_argument('-draw_position_threshold', type=int, default=1)
 opt = parser.parse_args()
 
@@ -24,7 +24,7 @@ kwargs = {
     'store': opt.store,
     'delta_t': opt.delta_t,
     'draw_colored_lane': opt.draw_colored_lane,
-    'draw_speed_map': opt.draw_speed_map,
+    'draw_stop_region': opt.draw_stop_region,
     'draw_position_threshold': opt.draw_position_threshold
 }
 

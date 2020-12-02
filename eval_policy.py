@@ -231,7 +231,6 @@ def parse_args():
     parser.add_argument('-ksize', type=int, default=7)
     parser.add_argument('-position_threshold', type=int, default=1)
     parser.add_argument('-offroad_map', type=str, default=None)
-    parser.add_argument('-speed_map', type=str, default=None)
     parser.add_argument('-use_kinetic_model', type=bool, default=False)
     opt = parser.parse_args()
     opt.save_dir = path.join(opt.model_dir, 'planning_results')
@@ -412,8 +411,6 @@ def process_one_episode(opt,
             ego_num = 4
             if opt.offroad_map is not None:
                 ego_num += 1
-            if opt.speed_map is not None:
-                ego_num += 1
             ego_mask = images[:, ego_num] > 0
             vehicle_value = images[:, 3]
             ego_value = images[:, ego_num]
@@ -482,8 +479,7 @@ def main():
     data_path = opt.dataset
 
     dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=True if hasattr(opt,'colored_lane') and opt.colored_lane else False,
-                            use_offroad_map=True if hasattr(opt,'offroad_map') and opt.offroad_map else False,
-                        use_speed_map=True if hasattr(opt,'speed_map') and opt.speed_map else False)
+                            use_offroad_map=True if hasattr(opt,'offroad_map') and opt.offroad_map else False)
     (
         forward_model,
         value_function,
@@ -514,7 +510,6 @@ def main():
             show_frame_count=False,
             colored_lane=opt.colored_lane,
             offroad_map=opt.offroad_map,
-            speed_map=opt.speed_map,
             use_kinetic_model=opt.use_kinetic_model
         )
     )
