@@ -19,6 +19,7 @@ class encoder(nn.Module):
         self.n_inputs = opt.ncond if n_inputs is None else n_inputs
         self.n_channels = n_channels
         self.use_kinetic_model = self.opt.use_kinetic_model if hasattr(self.opt, "use_kinetic_model") else False
+        self.use_batch_norm = self.opt.use_batch_norm if hasattr(self.opt, "use_batch_norm") else False
         # colored lane needs an additional channel
         if self.opt.use_colored_lane:
             self.n_channels = self.n_channels + 1
@@ -30,11 +31,13 @@ class encoder(nn.Module):
             self.feature_maps = (opt.nfeature // 4, opt.nfeature // 2, opt.nfeature)
             self.f_encoder = nn.Sequential(
                 nn.Conv2d(self.n_channels * self.n_inputs, self.feature_maps[0], 4, 2, 1),
-                nn.Dropout2d(p=opt.dropout, inplace=True),
                 nn.LeakyReLU(0.2, inplace=True),
+                nn.BatchNorm2d(self.feature_maps[0]) if self.use_batch_norm else None,
+                nn.Dropout2d(p=opt.dropout, inplace=True),
                 nn.Conv2d(self.feature_maps[0], self.feature_maps[1], 4, 2, 1),
-                nn.Dropout2d(p=opt.dropout, inplace=True),
                 nn.LeakyReLU(0.2, inplace=True),
+                nn.BatchNorm2d(self.feature_maps[1]) if self.use_batch_norm else None,
+                nn.Dropout2d(p=opt.dropout, inplace=True),
                 nn.Conv2d(self.feature_maps[1], self.feature_maps[2], 4, 2, 1),
             )
         elif opt.layers == 4:
@@ -58,11 +61,13 @@ class encoder(nn.Module):
             # state encoder
             self.s_encoder = nn.Sequential(
                 nn.Linear(state_input_size * self.n_inputs, n_hidden),
-                nn.Dropout(p=opt.dropout, inplace=True),
                 nn.LeakyReLU(0.2, inplace=True),
+                nn.BatchNorm1d(n_hidden) if self.use_batch_norm else None,
+                nn.Dropout(p=opt.dropout, inplace=True),
                 nn.Linear(n_hidden, n_hidden),
-                nn.Dropout(p=opt.dropout, inplace=True),
                 nn.LeakyReLU(0.2, inplace=True),
+                nn.BatchNorm1d(n_hidden) if self.use_batch_norm else None,
+                nn.Dropout(p=opt.dropout, inplace=True),
                 nn.Linear(n_hidden, opt.hidden_size)
             )
 
@@ -94,17 +99,20 @@ class u_network(nn.Module):
     def __init__(self, opt):
         super(u_network, self).__init__()
         self.opt = opt
+        self.use_batch_norm = self.opt.use_batch_norm if hasattr(self.opt, "use_batch_norm") else False
         self.encoder = nn.Sequential(
             nn.Conv2d(self.opt.nfeature, self.opt.nfeature, 4, 2, 1),
-            nn.Dropout2d(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
+            nn.BatchNorm2d(self.opt.nfeature) if self.use_batch_norm else None,
+            nn.Dropout2d(p=opt.dropout, inplace=True),
             nn.Conv2d(self.opt.nfeature, self.opt.nfeature, (4, 1), 2, 1)
         )
 
         self.decoder = nn.Sequential(
             nn.ConvTranspose2d(self.opt.nfeature, self.opt.nfeature, (4, 1), 2, 1),
-            nn.Dropout2d(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
+            nn.BatchNorm2d(self.opt.nfeature) if self.use_batch_norm else None,
+            nn.Dropout2d(p=opt.dropout, inplace=True),
             nn.ConvTranspose2d(self.opt.nfeature, self.opt.nfeature, (4, 3), 2, 0)
         )
 
@@ -112,8 +120,9 @@ class u_network(nn.Module):
         self.hidden_size = self.opt.nfeature*3*2
         self.fc = nn.Sequential(
             nn.Linear(self.hidden_size, self.opt.nfeature),
-            nn.Dropout(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
+            nn.BatchNorm1d(self.opt.nfeature) if self.use_batch_norm else None,
+            nn.Dropout(p=opt.dropout, inplace=True),
             nn.Linear(self.opt.nfeature, self.hidden_size)
         )
 
@@ -138,7 +147,7 @@ class decoder(nn.Module):
             if hasattr(self.opt, "use_offroad_map") and self.opt.use_offroad_map:
                 self.n_channels = self.n_channels + 1
         self.use_kinetic_model = self.opt.use_kinetic_model if hasattr(self.opt, "use_kinetic_model") else False
-
+        self.use_batch_norm = self.opt.use_batch_norm if hasattr(self.opt, "use_batch_norm") else False
         self.nfeature = self.opt.nfeature
         self.feature_maps = [int(self.nfeature / 4), int(self.nfeature / 2), self.nfeature]
 
@@ -146,22 +155,26 @@ class decoder(nn.Module):
             assert(opt.nfeature % 4 == 0)
             self.f_decoder = nn.Sequential(
                 nn.ConvTranspose2d(self.feature_maps[2], self.feature_maps[1], (4, 4), 2, 1),
-                nn.Dropout2d(p=opt.dropout, inplace=True),
                 nn.LeakyReLU(0.2, inplace=True),
+                nn.BatchNorm2d(self.feature_maps[1]) if self.use_batch_norm else None,
+                nn.Dropout2d(p=opt.dropout, inplace=True),
                 nn.ConvTranspose2d(self.feature_maps[1], self.feature_maps[0], (5, 5), 2, (0, 1)),
-                nn.Dropout2d(p=opt.dropout, inplace=True),
                 nn.LeakyReLU(0.2, inplace=True),
+                nn.BatchNorm2d(self.feature_maps[0]) if self.use_batch_norm else None,
+                nn.Dropout2d(p=opt.dropout, inplace=True),
                 nn.ConvTranspose2d(self.feature_maps[0], self.n_out*self.n_channels, (2, 2), 2, (0, 1))
             )
 
             if not self.use_kinetic_model:
                 self.h_reducer = nn.Sequential(
                     nn.Conv2d(self.feature_maps[2], self.feature_maps[0]//8, 4, 2, 1),
-                    nn.Dropout2d(p=opt.dropout, inplace=True),
                     nn.LeakyReLU(0.2, inplace=True),
-                    nn.Conv2d(self.feature_maps[0]//8, self.feature_maps[0]//16, (4, 1), (2, 1), 0),
+                    nn.BatchNorm2d(self.feature_maps[0] // 8) if self.use_batch_norm else None,
                     nn.Dropout2d(p=opt.dropout, inplace=True),
-                    nn.LeakyReLU(0.2, inplace=True)
+                    nn.Conv2d(self.feature_maps[0]//8, self.feature_maps[0]//16, (4, 1), (2, 1), 0),
+                    nn.LeakyReLU(0.2, inplace=True),
+                    nn.BatchNorm2d(self.feature_maps[0] // 16) if self.use_batch_norm else None,
+                    nn.Dropout2d(p=opt.dropout, inplace=True),
                 )
 
         elif self.opt.layers == 4:
@@ -193,11 +206,13 @@ class decoder(nn.Module):
         if not self.use_kinetic_model:
             self.s_predictor = nn.Sequential(
                 nn.Linear(2*n_hidden, n_hidden),
-                nn.Dropout(p=opt.dropout, inplace=True),
                 nn.LeakyReLU(0.2, inplace=True),
+                nn.BatchNorm1d(n_hidden) if self.use_batch_norm else None,
+                nn.Dropout(p=opt.dropout, inplace=True),
                 nn.Linear(n_hidden, n_hidden),
-                nn.Dropout(p=opt.dropout, inplace=True),
                 nn.LeakyReLU(0.2, inplace=True),
+                nn.BatchNorm1d(n_hidden) if self.use_batch_norm else None,
+                nn.Dropout(p=opt.dropout, inplace=True),
                 nn.Linear(n_hidden, self.n_out*4)
             )
 
@@ -221,11 +236,14 @@ class z_expander(nn.Module):
         super(z_expander, self).__init__()
         self.opt = opt
         self.n_steps = n_steps
+        self.use_batch_norm = self.opt.use_batch_norm if hasattr(self.opt, "use_batch_norm") else False
         self.z_expander = nn.Sequential(
             nn.Linear(opt.nz, opt.nfeature),
             nn.LeakyReLU(0.2, inplace=True),
+            nn.BatchNorm1d(opt.nfeature) if self.use_batch_norm else None,
             nn.Linear(opt.nfeature, opt.nfeature),
             nn.LeakyReLU(0.2, inplace=True),
+            nn.BatchNorm1d(opt.nfeature) if self.use_batch_norm else None,
             nn.Linear(opt.nfeature, n_steps * opt.nfeature * self.opt.h_height * self.opt.h_width)
         )
 
@@ -574,16 +592,19 @@ class FwdCNN_VAE(nn.Module):
         self.opt = opt
         self.use_kinetic_model = self.opt.use_kinetic_model if hasattr(self.opt, "use_kinetic_model") else False
         self.state_predictor = predict_states
+        self.use_batch_norm = self.opt.use_batch_norm if hasattr(self.opt, "use_batch_norm") else False
         if mfile == '':
             self.encoder = encoder(opt, 0, opt.ncond)
             self.decoder = decoder(opt)
             self.a_encoder = nn.Sequential(
                 nn.Linear(self.opt.n_actions, self.opt.nfeature),
-                nn.Dropout(p=opt.dropout, inplace=True),
                 nn.LeakyReLU(0.2, inplace=True),
+                nn.BatchNorm1d(self.opt.nfeature) if self.use_batch_norm else None,
+                nn.Dropout(p=opt.dropout, inplace=True),
                 nn.Linear(self.opt.nfeature, self.opt.nfeature),
-                nn.Dropout(p=opt.dropout, inplace=True),
                 nn.LeakyReLU(0.2, inplace=True),
+                nn.BatchNorm1d(self.opt.nfeature) if self.use_batch_norm else None,
+                nn.Dropout(p=opt.dropout, inplace=True),
                 nn.Linear(self.opt.nfeature, self.opt.hidden_size)
             )
             self.u_network = u_network(opt)
@@ -603,11 +624,13 @@ class FwdCNN_VAE(nn.Module):
 
         self.z_network = nn.Sequential(
             nn.Linear(opt.hidden_size, opt.nfeature),
-            nn.Dropout(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
+            nn.BatchNorm1d(self.opt.nfeature) if self.use_batch_norm else None,
+            nn.Dropout(p=opt.dropout, inplace=True),
             nn.Linear(opt.nfeature, opt.nfeature),
-            nn.Dropout(p=opt.dropout, inplace=True),
             nn.LeakyReLU(0.2, inplace=True),
+            nn.BatchNorm1d(self.opt.nfeature) if self.use_batch_norm else None,
+            nn.Dropout(p=opt.dropout, inplace=True),
             nn.Linear(opt.nfeature, 2*opt.nz)
         )
 
@@ -914,6 +937,7 @@ class DeterministicPolicy(nn.Module):
         self.hsize = opt.nfeature * self.opt.h_height * self.opt.h_width
         self.proj = nn.Linear(self.hsize, opt.n_hidden)
         self.context_dim = context_dim
+        self.use_batch_norm = self.opt.use_batch_norm if hasattr(self.opt, "use_batch_norm") else False
         if opt.track_grad_norm:
             self.a_grad_list = []
             self.register_backward_hook(self.hook_fn_backward)
@@ -921,10 +945,13 @@ class DeterministicPolicy(nn.Module):
         self.fc = nn.Sequential(
             nn.Linear(opt.n_hidden, opt.n_hidden),
             nn.ReLU(),
+            nn.BatchNorm1d(opt.n_hidden) if self.use_batch_norm else None,
             nn.Linear(opt.n_hidden, opt.n_hidden),
             nn.ReLU(),
+            nn.BatchNorm1d(opt.n_hidden) if self.use_batch_norm else None,
             nn.Linear(opt.n_hidden, opt.n_hidden),
             nn.ReLU(),
+            nn.BatchNorm1d(opt.n_hidden) if self.use_batch_norm else None,
             nn.Linear(opt.n_hidden, self.n_outputs)
         )
 

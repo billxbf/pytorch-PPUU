@@ -49,6 +49,7 @@ parser.add_argument('-ksize', type=int, default=7, help='kernel size for blurrin
 parser.add_argument('-position_threshold', type=int, default=1, help='threshold for position cost')
 parser.add_argument('-use_kinetic_model', type=bool, default=False)
 parser.add_argument('-replace_rate', type=float, default=0.0)
+parser.add_argument('-use_batch_norm', type=bool, default=False)
 opt = parser.parse_args()
 
 os.system('mkdir -p ' + opt.model_dir)
@@ -83,6 +84,8 @@ if opt.use_colored_lane:
     opt.model_file += f'-pt={opt.position_threshold}'
 if opt.replace_rate > 0.0:
     opt.model_file += f'-rr={opt.replace_rate}'
+if opt.use_batch_norm:
+    opt.model_file += f'-bn={opt.use_batch_norm}'
 print(f'[will save model as: {opt.model_file}]')
 
 
