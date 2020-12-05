@@ -180,7 +180,7 @@ def orientation_and_position_cost(images, states, pad, offroad_range, opt, car_s
     speed = states[:, 2:] * SCALE  # pixel/s
 
     images = images.view(bsize, npred, nchannels, crop_h, crop_w)
-    neighbourhood_array = images[:, :, :, crop_h//2-pad:crop_h//2+pad+1, crop_w//2-pad:crop_w//2+pad+1]
+    neighbourhood_array = images[:, :, :, crop_h//2-pad:crop_h//2+pad+1, crop_w//2-1:crop_w//2+1]
     dmap = torch.stack([2 * (neighbourhood_array[:, :, 0] - 0.5),
                              2 * (neighbourhood_array[:, :, 1] - 0.5)], dim=2).cuda()
     v = neighbourhood_array[:, :, 2]
