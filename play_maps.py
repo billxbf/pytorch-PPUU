@@ -25,7 +25,8 @@ kwargs = {
     'delta_t': opt.delta_t,
     'draw_colored_lane': opt.draw_colored_lane,
     'draw_stop_region': opt.draw_stop_region,
-    'draw_position_threshold': opt.draw_position_threshold
+    'draw_position_threshold': opt.draw_position_threshold,
+    'map':opt.map
 }
 
 gym.envs.registration.register(

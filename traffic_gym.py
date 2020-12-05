@@ -1,6 +1,7 @@
 import bisect
 import math
 import os
+import pdb
 import pickle
 import random
 import sys
@@ -11,7 +12,6 @@ import bezier
 # from skimage.transform import rescale
 import matplotlib.pyplot as plt
 import numpy as np
-import pdb
 import pygame
 import torch
 from PIL import Image
@@ -69,7 +69,7 @@ class Car:
     LANE_W = LANE_W
 
     def __init__(self, lanes, free_lanes, dt, car_id, look_ahead, screen_w, font, policy_type, policy_network=None,
-                 use_kinetic_model=False):
+                 use_kinetic_model=False, stop_region=None):
         """
         Initialise a sedan on a random lane
         :param lanes: tuple of lanes, with ``min`` and ``max`` y coordinates
@@ -106,6 +106,7 @@ class Car:
         self._ego_car_image = None
         self._lanes_image = list()
         self._offroads_image = list()
+        self._stops_image = list()
         self._actions = list()
         self._safe_factor = random.gauss(1.5, 0)  # 0.9 Germany, 2 safe
         self.pid_k1 = np.random.normal(1e-4, 1e-5)
@@ -118,6 +119,10 @@ class Car:
         self.is_controlled = False
         self.collisions_per_frame = 0
         self.use_kinetic_model = use_kinetic_model
+        self.stop_region = stop_region
+        self.start = None
+        if self.stop_region is not None:
+            self.valid_symbol = False
 
     @staticmethod
     def get_text(n, font):
@@ -326,6 +331,10 @@ class Car:
         return self._position + self._length * self._direction
 
     @property
+    def center(self):
+        return self._position + self._length * self._direction / 2
+
+    @property
     def back(self):
         return self._position
 
@@ -456,9 +465,10 @@ class Car:
         try:
             sub_surface = screen_surface.subsurface((*(centre + m - x_y / 2), *x_y))
         except ValueError as ex:  # if the agent fucks up
-            print(f'{self} fucked up')  # notify about the event
-            self.off_screen = True  # we're off_screen
-            return self._states_image[-1]  # return last state
+            return None
+            # print(f'{self} fucked up')  # notify about the event
+            # self.off_screen = True  # we're off_screen
+            # return self._states_image[-1]  # return last state
         theta = np.arctan2(*d[::-1]) * 180 / np.pi  # in degrees
         rot_surface = pygame.transform.rotate(sub_surface, theta)
         width_height = np.floor(np.array(width_height))
@@ -549,7 +559,7 @@ class Car:
         # self._colour = (255 * lane_cost, 0, 255 * (1 - lane_cost))
 
         # return state_image, lane_cost, proximity_cost, frame
-        # imsave('colored_lane.png', sub_rot_array_scaled_up)
+        # plt.imsave('colored_lane.png', sub_rot_array_scaled_up)
         return torch.from_numpy(sub_rot_array_scaled_up.copy()), lane_cost, proximity_cost, global_frame
 
     def store(self, object_name, object_):
@@ -565,6 +575,11 @@ class Car:
             self._lanes_image.append(self._get_observation_image(*object_))
         elif object_name == 'offroad_image':
             self._offroads_image.append(self._get_observation_image(*object_))
+        elif object_name == 'stop_image':
+            # self._stops_image.append(self._get_observation_image(*object_))
+            # self.check_valid(self._stops_image[-1])
+            stop_image = self._get_observation_image(*object_)
+            self.check_valid(stop_image)
 
     def get_last(self, n, done, norm_state=False, return_reward=False, gamma=0.99, colored_lane=None, offroad_map=None,
                  stop_region=None):
@@ -636,9 +651,18 @@ class Car:
 
         return observation, cost, self.off_screen or done, self
 
-    def dump_state_image(self, save_dir='scratch/', mode='img', colored_lane=None, offroad_map=None):
+    def dump_state_image(self, save_dir='scratch/', mode='img', colored_lane=None, offroad_map=None, stop_region=None):
         os.system('mkdir -p ' + save_dir)
         transpose = list(zip(*self._states_image))
+        if stop_region is not None and (self.start is None or self.start == 0):
+            print(f"car{self.id} does not start correctly.")
+            return
+        # if stop_region is not None:
+        #     stops_transpose = list(zip(*self._stops_image))
+        #     stops = stops_transpose[0]
+        #     for i in range(len(stops)):
+        #         plt.imsave(f"t_{i}.png",np.array(stops[i]))
+
         if colored_lane is not None:
             lanes_transpose = list(zip(*self._lanes_image))
             lanes = lanes_transpose[0]
@@ -686,9 +710,25 @@ class Car:
             for t in range(len(im)):
                 imwrite(f'{save_dir}/im{t:05d}.png', im[t].numpy())
 
+    def check_valid(self, stop_image):
+        if stop_image is not None:
+            img = np.array(stop_image[0])
+            detect_region = img[img.shape[0]//2-1:img.shape[0]//2+2,img.shape[1]//2-1:img.shape[1]//2+1,:]
+            if np.any(detect_region[:,:,1]>=128):
+                self.valid_symbol = True
+                self.start = 1
+                # plt.imsave('stop_img.png', img)
+            if np.any(detect_region[:,:,0]>=128):
+                self.valid_symbol = False
+                # plt.imsave('stop_img.png', img)
+
+
     @property
     def valid(self):
-        return self.back[0] > self.look_ahead and self.front[0] < self.screen_w - 1.75 * self.look_ahead
+        if hasattr(self, 'valid_symbol'):
+            return self.valid_symbol
+        else:
+            return self.back[0] > self.look_ahead and self.front[0] < self.screen_w - 1.75 * self.look_ahead
 
     def __repr__(self) -> str:
         cls = self.__class__
@@ -715,7 +755,7 @@ class Simulator(core.Env):
                  policy_type='hardcoded', nb_states=0, data_dir='', normalise_action=False, normalise_state=False,
                  return_reward=False, gamma=0.99, show_frame_count=True, store_simulator_video=False,
                  draw_colored_lane=False, colored_lane=None, stop_region=None, draw_stop_region=False,
-                 draw_position_threshold=1, offroad_map=None, use_kinetic_model=False):
+                 draw_position_threshold=1, offroad_map=None, use_kinetic_model=False, map='i80'):
 
         # Observation spaces definition
         self.observation_space = spaces.Box(low=-1, high=1, shape=(nb_states, STATE_D + STATE_C * STATE_H * STATE_W),
@@ -746,11 +786,13 @@ class Simulator(core.Env):
         self.policy_network = None
         self._lane_surfaces = dict()
         self._offroad_surfaces = dict()
+        self._stop_surfaces = dict()
         self.time_counter = None
         self.controlled_car = None
         self.nb_states = nb_states
         self.data_dir = data_dir
         self.user_is_done = None
+        self.map = map
 
         self.display = display
         self.trajectory_image = None
@@ -869,7 +911,8 @@ class Simulator(core.Env):
             if free_lanes:
                 car = self.EnvCar(self.lanes, free_lanes, self.delta_t, self.next_car_id,
                                   self.look_ahead, self.screen_size[0], self.font[20], policy_type=self.policy_type,
-                                  policy_network=self.policy_network, use_kinetic_model=self.use_kinetic_model)
+                                  policy_network=self.policy_network, use_kinetic_model=self.use_kinetic_model,
+                                  stop_region= self.stop_region)
                 self.next_car_id += 1
                 self.vehicles.append(car)
                 for l in car.get_lane_set(self.lanes):
@@ -1061,14 +1104,20 @@ class Simulator(core.Env):
             try:
                 lane_surface = self._lane_surfaces[mode]
                 offroad_surface = self._offroad_surfaces[mode]
+                stop_surface = self._stop_surfaces[mode]
 
             except KeyError:
                 lane_surface = pygame.Surface(machine_screen_size)
                 offroad_surface = None
+                stop_surface = None
                 if self.offroad_map is not None:
                     offroad_surface = pygame.Surface(machine_screen_size)
+                if self.stop_region is not None:
+                    stop_surface = pygame.Surface(machine_screen_size)
                 self._draw_lanes(lane_surface, mode=mode, offset=max_extension, colored_lane=self.colored_lane,
-                                 offroad_map=self.offroad_map, offroad_surface=offroad_surface, )
+                                 offroad_map=self.offroad_map, offroad_surface=offroad_surface,
+                                 stop_region=self.stop_region,
+                                 stop_surface=stop_surface)
 
             # # draw vehicles
             # for v in self.vehicles:
@@ -1079,12 +1128,23 @@ class Simulator(core.Env):
             # extract states
             ego_surface = pygame.Surface(machine_screen_size)
             for i, v in enumerate(self.vehicles):
+                if stop_surface is not None:
+                    v.store('stop_image', (max_extension, stop_surface, width_height, scale, self.frame,
+                                               self.colored_lane))
                 if (self.store or v.is_controlled) and v.valid:
                     # For every vehicle we want to extract the state, start with a black surface
                     vehicle_surface.fill((0, 0, 0))
                     # Draw all the other vehicles (in green)
                     for vv in set(self.vehicles) - {v}:
                         vv.draw(vehicle_surface, mode=mode, offset=max_extension)
+                    # Empty ego-surface
+                    ego_surface.fill((0, 0, 0))
+                    # Draw myself blue on the ego_surface
+                    ego_rect = v.draw(ego_surface, mode='ego-car', offset=max_extension)
+                    # Add me on top of others without shadowing
+                    # vehicle_surface.blit(ego_surface, ego_rect, ego_rect, special_flags=pygame.BLEND_MAX)
+                    v.store('ego_car_image', (max_extension, ego_surface, width_height, scale, self.frame,
+                                              self.colored_lane))
                     # Superimpose the lanes
                     if self.colored_lane is None:
                         vehicle_surface.blit(lane_surface, (0, 0), special_flags=pygame.BLEND_MAX)
@@ -1094,16 +1154,8 @@ class Simulator(core.Env):
                         if offroad_surface is not None:
                             v.store('offroad_image', (max_extension, offroad_surface, width_height, scale, self.frame,
                                                       self.colored_lane))
-                    # Empty ego-surface
-                    ego_surface.fill((0, 0, 0))
-                    # Draw myself blue on the ego_surface
-                    ego_rect = v.draw(ego_surface, mode='ego-car', offset=max_extension)
-                    # Add me on top of others without shadowing
-                    # vehicle_surface.blit(ego_surface, ego_rect, ego_rect, special_flags=pygame.BLEND_MAX)
                     v.store('state_image', (max_extension, vehicle_surface, width_height, scale, self.frame,
                                             self.colored_lane))
-                    v.store('ego_car_image', (max_extension, ego_surface, width_height, scale, self.frame,
-                                              self.colored_lane))
                     # Store whole history, if requested
                     if self.store_sim_video:
                         if self.ghost:
@@ -1114,7 +1166,8 @@ class Simulator(core.Env):
             # pygame.image.save(vehicle_surface, "vehicle_surface.png")
             # self._pause()
 
-    def _draw_lanes(self, surface, mode='human', offset=0, colored_lane=None, offroad_map=None, offroad_surface=None):
+    def _draw_lanes(self, surface, mode='human', offset=0, colored_lane=None, offroad_map=None, offroad_surface=None,
+                    stop_region=None, stop_surface=None):
         draw_line = pygame.draw.line
         if mode == 'human':
             lanes = self.lanes
@@ -1144,7 +1197,7 @@ class Simulator(core.Env):
         if self.trajectory_image is None:
             self.trajectory_image = np.zeros((self.screen_size[0], self.screen_size[1], 3))
         if self.draw_stop_region and self.stop_image is None:
-            self.stop_image = np.zeros((self.screen_size[0], self.screen_size[1], 1))
+            self.stop_image = np.zeros((self.screen_size[0], self.screen_size[1], 3))
         trajectory = v._trajectory
         # remove nan
         real_len = 0
@@ -1158,7 +1211,7 @@ class Simulator(core.Env):
         for i in range(1, real_len):
             if math.sqrt(pow(trajectory[i, 0] - points[-1][0], 2) + pow(trajectory[i, 1] - points[-1][1], 2)) > 5:
                 points.append(trajectory[i, :])
-
+        points = self.find_trajectory_center(points, v._length, v._direction)
         points = np.array(points)
         curve = bezier.Curve(points.T, degree=len(points) - 1)
         s_vals = np.linspace(0.0, 1.0, 5 * (len(points) - 1))
@@ -1173,9 +1226,26 @@ class Simulator(core.Env):
             self.trajectory_image[p[0] - pad:p[0] + pad + 1, p[1] - pad:p[1] + pad + 1, 1] += d[1]
             self.trajectory_image[p[0] - pad:p[0] + pad + 1, p[1] - pad:p[1] + pad + 1, 2] += 1
         if self.draw_stop_region:
-            x, y = trajectory[real_len - 1]
-            p = (round(x), round(y))
-            self.stop_image[p[0] - stoppad:p[0] + stoppad + 1, p[1] - stoppad:p[1] + stoppad + 1, 0] += 1
+            x0, y0 = points[0]
+            xt, yt = points[-1]
+            p0 = (round(x0), round(y0))
+            pt = (round(xt), round(yt))
+            self.stop_image[pt[0] - stoppad:pt[0] + stoppad + 1, pt[1] - stoppad:pt[1] + stoppad + 1, 0] += 1
+            self.stop_image[p0[0] - stoppad:p0[0] + stoppad + 1, p0[1] - stoppad:p0[1] + stoppad + 1, 1] += 1
+
+    def find_trajectory_center(self, trajectory, length, init_direction):
+        last_direction = init_direction
+        center = []
+        for i in range(len(trajectory) - 1):
+            direction_vector = trajectory[i + 1] - trajectory[i]
+            norm = np.linalg.norm(direction_vector)
+            if norm < 1e-6:
+                direction = last_direction  # if static returns previous direction
+            else:
+                direction = direction_vector / norm
+            last_direction = direction
+            center.append(trajectory[i] + length * direction / 2)
+        return np.array(center)
 
     def get_final_trajectory(self):
         soft_threshold = 0.85
@@ -1190,11 +1260,15 @@ class Simulator(core.Env):
         phi = 1. / (1. + np.exp(-50 * (phi - soft_threshold)))
         lane_image[:, :, 0] = (d[:, :, 0] * phi) * 0.5 + 0.5
         lane_image[:, :, 1] = (d[:, :, 1] * phi) * 0.5 + 0.5
-        plt.imsave(f"{self.draw_position_threshold}actrajectory.png", np.transpose(lane_image, (1, 0, 2)))
+        plt.imsave(f"{self.map}_{self.draw_position_threshold}actrajectory.png", np.transpose(lane_image, (1, 0, 2)))
         if self.draw_stop_region:
+            start_image = self.stop_image[:, :, 1]
             stop_image = self.stop_image[:, :, 0]
+            start_image = np.min(np.stack([start_image, np.ones_like(start_image)], axis=2), axis=2)
             stop_image = np.min(np.stack([stop_image, np.ones_like(stop_image)], axis=2), axis=2)
-            plt.imsave(f"stop_region.png", np.transpose(stop_image, (1, 0)))
+            self.stop_image[:, :, 1] = start_image
+            self.stop_image[:, :, 0] = stop_image
+            plt.imsave(f"{self.map}_stop_region.png", np.transpose(self.stop_image, (1, 0, 2)))
 
     def _pause(self):
         pause = True

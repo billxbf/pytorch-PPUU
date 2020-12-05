@@ -24,6 +24,7 @@ parser.add_argument('-delta_t', type=float, default=0.1)
 parser.add_argument('-colored_lane', type=str, default=None)
 parser.add_argument('-offroad_map', type=str, default=None)
 parser.add_argument('-use_kinetic_model', type=bool, default=False)
+parser.add_argument('-stop_region', type=str, default=None)
 opt = parser.parse_args()
 
 opt.state_image = (opt.state_image == 1)
@@ -46,7 +47,8 @@ kwargs = dict(
     delta_t=opt.delta_t,
     colored_lane=opt.colored_lane,
     offroad_map=opt.offroad_map,
-    use_kinetic_model=opt.use_kinetic_model
+    use_kinetic_model=opt.use_kinetic_model,
+    stop_region=opt.stop_region
 )
 
 register(

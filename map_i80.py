@@ -30,7 +30,8 @@ class I80Car(Car):
     max_a = 40
     max_b = 0.01
 
-    def __init__(self, df, y_offset, look_ahead, screen_w, font=None, kernel=0, dt=1 / 10, use_kinetic_model=False):
+    def __init__(self, df, y_offset, look_ahead, screen_w, font=None, kernel=0, dt=1 / 10, use_kinetic_model=False,
+                 stop_region=None):
         # super().__init__(lanes, free_lanes, dt, car_id, look_ahead, screen_w, font, policy_type,
         #                  use_kinetic_model=use_kinetic_model)
         k = kernel  # running window size
@@ -38,6 +39,7 @@ class I80Car(Car):
         self._width = df.at[df.index[0], 'Vehicle Width'] * FOOT * SCALE
         self.id = df.at[df.index[0], 'Vehicle ID']  # extract scalar <'Vehicle ID'> <at> <index[0]>
         self.use_kinetic_model = use_kinetic_model
+        self.stop_region = stop_region
 
         # X and Y are swapped in the I-80 data set...
         x = df['Local Y'].rolling(window=k).mean().shift(1 - k).values * FOOT * SCALE - self.X_OFFSET - self._length
@@ -65,6 +67,7 @@ class I80Car(Car):
         self._ego_car_image = None
         self._lanes_image = list()
         self._offroads_image = list()
+        self._stops_image = list()
         self._actions = list()
         self._passing = False
         self._actions = list()
@@ -78,6 +81,10 @@ class I80Car(Car):
         self.is_controlled = False
         self._lane_list = df['Lane Identification'].values
         self.collisions_per_frame = 0
+        self.start = None
+        if self.stop_region is not None:
+            self.valid_symbol = False
+
 
     @property
     def is_autonomous(self):
@@ -378,7 +385,7 @@ class I80(Simulator):
                 if len(car_df) < self.smoothing_window + 1: continue
                 f = self.font[20] if self.display else None
                 car = self.EnvCar(car_df, self.offset, self.look_ahead, self.screen_size[0], f, self.smoothing_window,
-                                  dt=self.delta_t, use_kinetic_model=self.use_kinetic_model)
+                                  dt=self.delta_t, use_kinetic_model=self.use_kinetic_model, stop_region=self.stop_region)
                 self.vehicles.append(car)
                 if self.controlled_car and \
                         not self.controlled_car['locked'] and \
@@ -395,7 +402,8 @@ class I80(Simulator):
                     # system(f'mkdir -p screen-dumps/{self.dump_folder}')
                     if self.store_sim_video:
                         self.ghost = self.EnvCar(car_df, self.offset, self.look_ahead, self.screen_size[0], f,
-                                                 self.smoothing_window, dt=self.delta_t, use_kinetic_model=self.use_kinetic_model)
+                                                 self.smoothing_window, dt=self.delta_t, use_kinetic_model=self.use_kinetic_model,
+                                                 stop_region = self.stop_region)
             self.vehicles_history |= vehicles  # union set operation
 
         self.lane_occupancy = [[] for _ in range(7)]
@@ -408,7 +416,8 @@ class I80(Simulator):
                 if self.state_image and self.store:
                     file_name = os.path.join(self.data_dir, self.DUMP_NAME, os.path.basename(self._t_slot))
                     print(f'[dumping {v} in {file_name}]')
-                    v.dump_state_image(file_name, 'tensor', colored_lane=self.colored_lane, offroad_map=self.offroad_map)
+                    v.dump_state_image(file_name, 'tensor', colored_lane=self.colored_lane, offroad_map=self.offroad_map,
+                                       stop_region=self.stop_region)
                 self.vehicles.remove(v)
             else:
                 # Insort it in my vehicle list
@@ -491,7 +500,8 @@ class I80(Simulator):
         # return observation, reward, done, info
         return None, None, self.done, None
 
-    def _draw_lanes(self, surface, mode='human', offset=0, colored_lane=None, offroad_map=None, offroad_surface=None):
+    def _draw_lanes(self, surface, mode='human', offset=0, colored_lane=None, offroad_map=None, offroad_surface=None,
+                    stop_region=None, stop_surface=None):
 
         slope = 0.035
 
@@ -531,7 +541,7 @@ class I80(Simulator):
                     offroad = pygame.image.load(offroad_map)
                     offroad_surface.blit(offroad,(0,0))
 
-            #pygame.image.save(surface, "i80-real.png")
+            pygame.image.save(surface, "i80-real.png")
 
         if mode == 'machine':
             if colored_lane is None:
@@ -582,6 +592,11 @@ class I80(Simulator):
                     offroad = pygame.image.load(offroad_map)
                     offroad_surface.blit(offroad,(m + 0, m + lanes[0]['min'] - 35))
                     self._offroad_surfaces[mode] = offroad_surface.copy()
+                if stop_region:
+                    stop_region = pygame.image.load(stop_region)
+                    stop_surface.blit(stop_region, (m + 0, m + lanes[0]['min'] - 35))
+                    self._stop_surfaces[mode] = stop_surface.copy()
+
             # pygame.image.save(surface, "i80-road.png")
             # pygame.image.save(offroad_surface, "i80-offroad.png")
-            # pygame.image.save(speed_surface, "i80-speed.png")
+            # pygame.image.save(stop_surface, "i80-stop.png")
