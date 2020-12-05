@@ -7,8 +7,9 @@ class ControlledI80Car(I80Car):
     # Import get_lane_set from PatchedCar
     get_lane_set = PatchedCar.get_lane_set
 
-    def __init__(self, df, y_offset, look_ahead, screen_w, font=None, kernel=0, dt=1/10, use_kinetic_model=False):
-        super().__init__(df, y_offset, look_ahead, screen_w, font, kernel, dt, use_kinetic_model=use_kinetic_model)
+    def __init__(self, df, y_offset, look_ahead, screen_w, font=None, kernel=0, dt=1/10, use_kinetic_model=False,
+                 stop_region=None):
+        super().__init__(df, y_offset, look_ahead, screen_w, font, kernel, dt, use_kinetic_model=use_kinetic_model, stop_region=stop_region)
         self.is_controlled = False
         self.buffer_size = 0
         self.lanes = None
@@ -23,7 +24,7 @@ class ControlledI80Car(I80Car):
 
         # Otherwise fetch x location
         x = self._position[0]
-        if x > self.screen_w - 1.75 * self.look_ahead:
+        if x > self.screen_w - 1.75 * self.look_ahead and self.stop_region is None:
             self.off_screen = True
             self.arrived_to_dst = True
 
@@ -31,7 +32,7 @@ class ControlledI80Car(I80Car):
         y = self._position[1]
 
         # If way too up
-        if y < self.lanes[0]['min']:
+        if y < self.lanes[0]['min'] and self.stop_region is None:
             self.off_screen = True
             self.arrived_to_dst = False
             return 0
@@ -47,8 +48,9 @@ class ControlledI80Car(I80Car):
             return 6
 
         # Actually, way too low
-        self.off_screen = True
-        self.arrived_to_dst = False
+        if self.stop_region is None:
+            self.off_screen = True
+            self.arrived_to_dst = False
         return 6
 
     @property

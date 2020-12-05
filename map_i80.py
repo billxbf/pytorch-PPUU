@@ -67,7 +67,7 @@ class I80Car(Car):
         self._ego_car_image = None
         self._lanes_image = list()
         self._offroads_image = list()
-        self._stops_image = list()
+        self._stop_image = None
         self._actions = list()
         self._passing = False
         self._actions = list()
@@ -432,7 +432,6 @@ class I80(Simulator):
             self.render(mode='machine', width_height=(2 * look_ahead, 2 * look_sideways), scale=0.25)
 
         for v in self.vehicles:
-
             # Generate symbolic state
             lane_idx = v.current_lane
             left_vehicles = self._get_neighbours(lane_idx, -1, v) \
@@ -494,6 +493,7 @@ class I80(Simulator):
                 gamma=self.gamma,
                 colored_lane=self.colored_lane,
                 offroad_map=self.offroad_map,
+                stop_region=self.stop_region
             )
             if return_: return return_
 
@@ -541,7 +541,7 @@ class I80(Simulator):
                     offroad = pygame.image.load(offroad_map)
                     offroad_surface.blit(offroad,(0,0))
 
-            pygame.image.save(surface, "i80-real.png")
+            # pygame.image.save(surface, "i80-real.png")
 
         if mode == 'machine':
             if colored_lane is None:

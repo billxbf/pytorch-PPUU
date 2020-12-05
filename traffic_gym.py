@@ -106,7 +106,7 @@ class Car:
         self._ego_car_image = None
         self._lanes_image = list()
         self._offroads_image = list()
-        self._stops_image = list()
+        self._stop_image = None
         self._actions = list()
         self._safe_factor = random.gauss(1.5, 0)  # 0.9 Germany, 2 safe
         self.pid_k1 = np.random.normal(1e-4, 1e-5)
@@ -120,7 +120,7 @@ class Car:
         self.collisions_per_frame = 0
         self.use_kinetic_model = use_kinetic_model
         self.stop_region = stop_region
-        self.start = None
+        self.start = False
         if self.stop_region is not None:
             self.valid_symbol = False
 
@@ -576,10 +576,7 @@ class Car:
         elif object_name == 'offroad_image':
             self._offroads_image.append(self._get_observation_image(*object_))
         elif object_name == 'stop_image':
-            # self._stops_image.append(self._get_observation_image(*object_))
-            # self.check_valid(self._stops_image[-1])
-            stop_image = self._get_observation_image(*object_)
-            self.check_valid(stop_image)
+            self._stop_image = self._get_observation_image(*object_)[0]
 
     def get_last(self, n, done, norm_state=False, return_reward=False, gamma=0.99, colored_lane=None, offroad_map=None,
                  stop_region=None):
@@ -603,6 +600,8 @@ class Car:
             state_images = torch.cat([state_images, offroad_images[:, 2, :, :].unsqueeze(dim=1)],
                                      dim=1)  # Only use green channel
             del offroad_images
+        if stop_region is not None:
+            self.check_arrive_offroad()
         ego_car_new_shape = list(state_images.shape)
         ego_car_new_shape[1] = 1
         ego_car_channel = self._ego_car_image[:, :, 2][None, None, :].expand(ego_car_new_shape)
@@ -654,15 +653,9 @@ class Car:
     def dump_state_image(self, save_dir='scratch/', mode='img', colored_lane=None, offroad_map=None, stop_region=None):
         os.system('mkdir -p ' + save_dir)
         transpose = list(zip(*self._states_image))
-        if stop_region is not None and (self.start is None or self.start == 0):
+        if stop_region is not None and self.start == False:
             print(f"car{self.id} does not start correctly.")
             return
-        # if stop_region is not None:
-        #     stops_transpose = list(zip(*self._stops_image))
-        #     stops = stops_transpose[0]
-        #     for i in range(len(stops)):
-        #         plt.imsave(f"t_{i}.png",np.array(stops[i]))
-
         if colored_lane is not None:
             lanes_transpose = list(zip(*self._lanes_image))
             lanes = lanes_transpose[0]
@@ -710,18 +703,32 @@ class Car:
             for t in range(len(im)):
                 imwrite(f'{save_dir}/im{t:05d}.png', im[t].numpy())
 
-    def check_valid(self, stop_image):
-        if stop_image is not None:
-            img = np.array(stop_image[0])
-            detect_region = img[img.shape[0]//2-1:img.shape[0]//2+2,img.shape[1]//2-1:img.shape[1]//2+1,:]
-            if np.any(detect_region[:,:,1]>=128):
+    def check_valid(self):
+        if self._stop_image is not None:
+            img = np.array(self._stop_image)
+            detect_region = img[img.shape[0] // 2 - 1:img.shape[0] // 2 + 2,
+                            img.shape[1] // 2 - 1:img.shape[1] // 2 + 1, :]
+            if np.any(detect_region[:, :, 1] >= 128):
                 self.valid_symbol = True
-                self.start = 1
+                self.start = True
                 # plt.imsave('stop_img.png', img)
-            if np.any(detect_region[:,:,0]>=128):
+            if np.any(detect_region[:, :, 0] >= 128):
                 self.valid_symbol = False
                 # plt.imsave('stop_img.png', img)
 
+    def check_arrive_offroad(self):
+        if self._stop_image is not None:
+            img = np.array(self._stop_image)
+            detect_region = img[img.shape[0] // 2 - 1:img.shape[0] // 2 + 2,
+                            img.shape[1] // 2 - 1:img.shape[1] // 2 + 1, :]
+            if np.any(detect_region[:, :, 2] >= 128):
+                self.arrived_to_dst = False
+                self.off_screen = True
+            elif self.start == True and self.valid == False:
+                self.arrived_to_dst = True
+                self.off_screen = True
+        else:
+            raise ValueError
 
     @property
     def valid(self):
@@ -912,7 +919,7 @@ class Simulator(core.Env):
                 car = self.EnvCar(self.lanes, free_lanes, self.delta_t, self.next_car_id,
                                   self.look_ahead, self.screen_size[0], self.font[20], policy_type=self.policy_type,
                                   policy_network=self.policy_network, use_kinetic_model=self.use_kinetic_model,
-                                  stop_region= self.stop_region)
+                                  stop_region=self.stop_region)
                 self.next_car_id += 1
                 self.vehicles.append(car)
                 for l in car.get_lane_set(self.lanes):
@@ -1130,7 +1137,8 @@ class Simulator(core.Env):
             for i, v in enumerate(self.vehicles):
                 if stop_surface is not None:
                     v.store('stop_image', (max_extension, stop_surface, width_height, scale, self.frame,
-                                               self.colored_lane))
+                                           self.colored_lane))
+                    v.check_valid()
                 if (self.store or v.is_controlled) and v.valid:
                     # For every vehicle we want to extract the state, start with a black surface
                     vehicle_surface.fill((0, 0, 0))

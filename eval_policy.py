@@ -232,6 +232,7 @@ def parse_args():
     parser.add_argument('-position_threshold', type=int, default=1)
     parser.add_argument('-offroad_map', type=str, default=None)
     parser.add_argument('-use_kinetic_model', type=bool, default=False)
+    parser.add_argument('-stop_region', type=str, default=None)
     opt = parser.parse_args()
     opt.save_dir = path.join(opt.model_dir, 'planning_results')
     opt.height = 117
@@ -510,7 +511,8 @@ def main():
             show_frame_count=False,
             colored_lane=opt.colored_lane,
             offroad_map=opt.offroad_map,
-            use_kinetic_model=opt.use_kinetic_model
+            use_kinetic_model=opt.use_kinetic_model,
+            stop_region=opt.stop_region
         )
     )
 
