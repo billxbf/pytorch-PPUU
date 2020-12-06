@@ -235,7 +235,7 @@ class DataLoader:
                 if self.current_index==len(indx):
                     self.random.shuffle(indx)
                     self.current_index=0
-                    s =indx[self.current_index]
+                s =indx[self.current_index]
                 episode_length = min(self.images[s].size(0), self.states[s].size(0))
                 if episode_length >= T:
                     t = self.random.randint(0, episode_length - T)
