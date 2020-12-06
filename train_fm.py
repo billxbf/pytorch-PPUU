@@ -50,6 +50,7 @@ parser.add_argument('-position_threshold', type=int, default=1, help='threshold 
 parser.add_argument('-use_kinetic_model', type=bool, default=False)
 parser.add_argument('-replace_rate', type=float, default=0.0)
 parser.add_argument('-use_batch_norm', type=bool, default=False)
+parser.add_argument('-iterate_all', type=bool, default=False)
 opt = parser.parse_args()
 
 os.system('mkdir -p ' + opt.model_dir)
@@ -63,7 +64,8 @@ torch.cuda.manual_seed(opt.seed)
 # define colored_lane symbol for dataloader
 dataloader = DataLoader(None, opt, opt.dataset, use_colored_lane=opt.use_colored_lane,
                         use_offroad_map=opt.use_offroad_map,
-                        use_kinetic_model=opt.use_kinetic_model)
+                        use_kinetic_model=opt.use_kinetic_model,
+                        iterate_all=opt.iterate_all)
 
 
 # define model file name
