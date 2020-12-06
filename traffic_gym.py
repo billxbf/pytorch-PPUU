@@ -721,7 +721,7 @@ class Car:
             img = np.array(self._stop_image)
             detect_region = img[img.shape[0] // 2 - 1:img.shape[0] // 2 + 2,
                             img.shape[1] // 2 - 1:img.shape[1] // 2 + 1, :]
-            if np.any(detect_region[:, :, 2] >= 128):
+            if np.mean(detect_region[:, :, 2])>=128:
                 self.arrived_to_dst = False
                 self.off_screen = True
             elif self.start == True and self.valid == False:
