@@ -29,17 +29,18 @@ class encoder(nn.Module):
         if opt.layers == 3:
             assert(opt.nfeature % 4 == 0)
             self.feature_maps = (opt.nfeature // 4, opt.nfeature // 2, opt.nfeature)
-            self.f_encoder = nn.Sequential(
-                nn.Conv2d(self.n_channels * self.n_inputs, self.feature_maps[0], 4, 2, 1),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.BatchNorm2d(self.feature_maps[0]) if self.use_batch_norm else None,
-                nn.Dropout2d(p=opt.dropout, inplace=True),
-                nn.Conv2d(self.feature_maps[0], self.feature_maps[1], 4, 2, 1),
-                nn.LeakyReLU(0.2, inplace=True),
-                nn.BatchNorm2d(self.feature_maps[1]) if self.use_batch_norm else None,
-                nn.Dropout2d(p=opt.dropout, inplace=True),
-                nn.Conv2d(self.feature_maps[1], self.feature_maps[2], 4, 2, 1),
-            )
+            if self.use_batch_norm:
+                self.f_encoder = nn.Sequential(
+                    nn.Conv2d(self.n_channels * self.n_inputs, self.feature_maps[0], 4, 2, 1),
+                    nn.LeakyReLU(0.2, inplace=True),
+                    nn.BatchNorm2d(self.feature_maps[0]) if self.use_batch_norm else nn.Identity(),
+                    nn.Dropout2d(p=opt.dropout, inplace=True),
+                    nn.Conv2d(self.feature_maps[0], self.feature_maps[1], 4, 2, 1),
+                    nn.LeakyReLU(0.2, inplace=True),
+                    nn.BatchNorm2d(self.feature_maps[1]) if self.use_batch_norm else nn.Identity(),
+                    nn.Dropout2d(p=opt.dropout, inplace=True),
+                    nn.Conv2d(self.feature_maps[1], self.feature_maps[2], 4, 2, 1),
+                )
         elif opt.layers == 4:
             assert(opt.nfeature % 8 == 0)
             self.feature_maps = (opt.nfeature // 8, opt.nfeature // 4, opt.nfeature // 2, opt.nfeature)
@@ -62,11 +63,11 @@ class encoder(nn.Module):
             self.s_encoder = nn.Sequential(
                 nn.Linear(state_input_size * self.n_inputs, n_hidden),
                 nn.LeakyReLU(0.2, inplace=True),
-                nn.BatchNorm1d(n_hidden) if self.use_batch_norm else None,
+                nn.BatchNorm1d(n_hidden) if self.use_batch_norm else nn.Identity(),
                 nn.Dropout(p=opt.dropout, inplace=True),
                 nn.Linear(n_hidden, n_hidden),
                 nn.LeakyReLU(0.2, inplace=True),
-                nn.BatchNorm1d(n_hidden) if self.use_batch_norm else None,
+                nn.BatchNorm1d(n_hidden) if self.use_batch_norm else nn.Identity(),
                 nn.Dropout(p=opt.dropout, inplace=True),
                 nn.Linear(n_hidden, opt.hidden_size)
             )
@@ -103,7 +104,7 @@ class u_network(nn.Module):
         self.encoder = nn.Sequential(
             nn.Conv2d(self.opt.nfeature, self.opt.nfeature, 4, 2, 1),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.BatchNorm2d(self.opt.nfeature) if self.use_batch_norm else None,
+            nn.BatchNorm2d(self.opt.nfeature) if self.use_batch_norm else nn.Identity(),
             nn.Dropout2d(p=opt.dropout, inplace=True),
             nn.Conv2d(self.opt.nfeature, self.opt.nfeature, (4, 1), 2, 1)
         )
@@ -111,7 +112,7 @@ class u_network(nn.Module):
         self.decoder = nn.Sequential(
             nn.ConvTranspose2d(self.opt.nfeature, self.opt.nfeature, (4, 1), 2, 1),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.BatchNorm2d(self.opt.nfeature) if self.use_batch_norm else None,
+            nn.BatchNorm2d(self.opt.nfeature) if self.use_batch_norm else nn.Identity(),
             nn.Dropout2d(p=opt.dropout, inplace=True),
             nn.ConvTranspose2d(self.opt.nfeature, self.opt.nfeature, (4, 3), 2, 0)
         )
@@ -121,7 +122,7 @@ class u_network(nn.Module):
         self.fc = nn.Sequential(
             nn.Linear(self.hidden_size, self.opt.nfeature),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.BatchNorm1d(self.opt.nfeature) if self.use_batch_norm else None,
+            nn.BatchNorm1d(self.opt.nfeature) if self.use_batch_norm else nn.Identity(),
             nn.Dropout(p=opt.dropout, inplace=True),
             nn.Linear(self.opt.nfeature, self.hidden_size)
         )
@@ -156,11 +157,11 @@ class decoder(nn.Module):
             self.f_decoder = nn.Sequential(
                 nn.ConvTranspose2d(self.feature_maps[2], self.feature_maps[1], (4, 4), 2, 1),
                 nn.LeakyReLU(0.2, inplace=True),
-                nn.BatchNorm2d(self.feature_maps[1]) if self.use_batch_norm else None,
+                nn.BatchNorm2d(self.feature_maps[1]) if self.use_batch_norm else nn.Identity(),
                 nn.Dropout2d(p=opt.dropout, inplace=True),
                 nn.ConvTranspose2d(self.feature_maps[1], self.feature_maps[0], (5, 5), 2, (0, 1)),
                 nn.LeakyReLU(0.2, inplace=True),
-                nn.BatchNorm2d(self.feature_maps[0]) if self.use_batch_norm else None,
+                nn.BatchNorm2d(self.feature_maps[0]) if self.use_batch_norm else nn.Identity(),
                 nn.Dropout2d(p=opt.dropout, inplace=True),
                 nn.ConvTranspose2d(self.feature_maps[0], self.n_out*self.n_channels, (2, 2), 2, (0, 1))
             )
@@ -169,11 +170,11 @@ class decoder(nn.Module):
                 self.h_reducer = nn.Sequential(
                     nn.Conv2d(self.feature_maps[2], self.feature_maps[0]//8, 4, 2, 1),
                     nn.LeakyReLU(0.2, inplace=True),
-                    nn.BatchNorm2d(self.feature_maps[0] // 8) if self.use_batch_norm else None,
+                    nn.BatchNorm2d(self.feature_maps[0] // 8) if self.use_batch_norm else nn.Identity(),
                     nn.Dropout2d(p=opt.dropout, inplace=True),
                     nn.Conv2d(self.feature_maps[0]//8, self.feature_maps[0]//16, (4, 1), (2, 1), 0),
                     nn.LeakyReLU(0.2, inplace=True),
-                    nn.BatchNorm2d(self.feature_maps[0] // 16) if self.use_batch_norm else None,
+                    nn.BatchNorm2d(self.feature_maps[0] // 16) if self.use_batch_norm else nn.Identity(),
                     nn.Dropout2d(p=opt.dropout, inplace=True),
                 )
 
@@ -207,11 +208,11 @@ class decoder(nn.Module):
             self.s_predictor = nn.Sequential(
                 nn.Linear(2*n_hidden, n_hidden),
                 nn.LeakyReLU(0.2, inplace=True),
-                nn.BatchNorm1d(n_hidden) if self.use_batch_norm else None,
+                nn.BatchNorm1d(n_hidden) if self.use_batch_norm else nn.Identity(),
                 nn.Dropout(p=opt.dropout, inplace=True),
                 nn.Linear(n_hidden, n_hidden),
                 nn.LeakyReLU(0.2, inplace=True),
-                nn.BatchNorm1d(n_hidden) if self.use_batch_norm else None,
+                nn.BatchNorm1d(n_hidden) if self.use_batch_norm else nn.Identity(),
                 nn.Dropout(p=opt.dropout, inplace=True),
                 nn.Linear(n_hidden, self.n_out*4)
             )
@@ -240,10 +241,10 @@ class z_expander(nn.Module):
         self.z_expander = nn.Sequential(
             nn.Linear(opt.nz, opt.nfeature),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.BatchNorm1d(opt.nfeature) if self.use_batch_norm else None,
+            nn.BatchNorm1d(opt.nfeature) if self.use_batch_norm else nn.Identity(),
             nn.Linear(opt.nfeature, opt.nfeature),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.BatchNorm1d(opt.nfeature) if self.use_batch_norm else None,
+            nn.BatchNorm1d(opt.nfeature) if self.use_batch_norm else nn.Identity(),
             nn.Linear(opt.nfeature, n_steps * opt.nfeature * self.opt.h_height * self.opt.h_width)
         )
 
@@ -599,11 +600,11 @@ class FwdCNN_VAE(nn.Module):
             self.a_encoder = nn.Sequential(
                 nn.Linear(self.opt.n_actions, self.opt.nfeature),
                 nn.LeakyReLU(0.2, inplace=True),
-                nn.BatchNorm1d(self.opt.nfeature) if self.use_batch_norm else None,
+                nn.BatchNorm1d(self.opt.nfeature) if self.use_batch_norm else nn.Identity(),
                 nn.Dropout(p=opt.dropout, inplace=True),
                 nn.Linear(self.opt.nfeature, self.opt.nfeature),
                 nn.LeakyReLU(0.2, inplace=True),
-                nn.BatchNorm1d(self.opt.nfeature) if self.use_batch_norm else None,
+                nn.BatchNorm1d(self.opt.nfeature) if self.use_batch_norm else nn.Identity(),
                 nn.Dropout(p=opt.dropout, inplace=True),
                 nn.Linear(self.opt.nfeature, self.opt.hidden_size)
             )
@@ -625,11 +626,11 @@ class FwdCNN_VAE(nn.Module):
         self.z_network = nn.Sequential(
             nn.Linear(opt.hidden_size, opt.nfeature),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.BatchNorm1d(self.opt.nfeature) if self.use_batch_norm else None,
+            nn.BatchNorm1d(self.opt.nfeature) if self.use_batch_norm else nn.Identity(),
             nn.Dropout(p=opt.dropout, inplace=True),
             nn.Linear(opt.nfeature, opt.nfeature),
             nn.LeakyReLU(0.2, inplace=True),
-            nn.BatchNorm1d(self.opt.nfeature) if self.use_batch_norm else None,
+            nn.BatchNorm1d(self.opt.nfeature) if self.use_batch_norm else nn.Identity(),
             nn.Dropout(p=opt.dropout, inplace=True),
             nn.Linear(opt.nfeature, 2*opt.nz)
         )
@@ -945,13 +946,13 @@ class DeterministicPolicy(nn.Module):
         self.fc = nn.Sequential(
             nn.Linear(opt.n_hidden, opt.n_hidden),
             nn.ReLU(),
-            nn.BatchNorm1d(opt.n_hidden) if self.use_batch_norm else None,
+            nn.BatchNorm1d(opt.n_hidden) if self.use_batch_norm else nn.Identity(),
             nn.Linear(opt.n_hidden, opt.n_hidden),
             nn.ReLU(),
-            nn.BatchNorm1d(opt.n_hidden) if self.use_batch_norm else None,
+            nn.BatchNorm1d(opt.n_hidden) if self.use_batch_norm else nn.Identity(),
             nn.Linear(opt.n_hidden, opt.n_hidden),
             nn.ReLU(),
-            nn.BatchNorm1d(opt.n_hidden) if self.use_batch_norm else None,
+            nn.BatchNorm1d(opt.n_hidden) if self.use_batch_norm else nn.Identity(),
             nn.Linear(opt.n_hidden, self.n_outputs)
         )
 
