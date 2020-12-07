@@ -29,8 +29,7 @@ class encoder(nn.Module):
         if opt.layers == 3:
             assert(opt.nfeature % 4 == 0)
             self.feature_maps = (opt.nfeature // 4, opt.nfeature // 2, opt.nfeature)
-            if self.use_batch_norm:
-                self.f_encoder = nn.Sequential(
+            self.f_encoder = nn.Sequential(
                     nn.Conv2d(self.n_channels * self.n_inputs, self.feature_maps[0], 4, 2, 1),
                     nn.LeakyReLU(0.2, inplace=True),
                     nn.BatchNorm2d(self.feature_maps[0]) if self.use_batch_norm else nn.Identity(),
