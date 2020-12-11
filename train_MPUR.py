@@ -126,7 +126,6 @@ def start(what, nbatches, npred, track=False, pad=1, offroad_range=1.0):
             uncertainty=0,
             position=0,
             orientation=0,
-            speed=0,
             action=0,
             policy=0,
         )
