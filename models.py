@@ -1046,26 +1046,11 @@ class DeterministicPolicy(nn.Module):
         self.hsize = opt.nfeature * self.opt.h_height * self.opt.h_width
         self.proj = nn.Linear(self.hsize, opt.n_hidden)
         self.context_dim = context_dim
-        self.use_batch_norm = self.opt.use_batch_norm if hasattr(self.opt, "use_batch_norm") else False
+        # self.use_batch_norm = self.opt.use_batch_norm if hasattr(self.opt, "use_batch_norm") else False
         if opt.track_grad_norm:
             self.a_grad_list = []
             self.register_backward_hook(self.hook_fn_backward)
-
-        if self.use_batch_norm:
-            self.fc = nn.Sequential(
-                nn.Linear(opt.n_hidden, opt.n_hidden),
-                nn.ReLU(),
-                nn.BatchNorm1d(opt.n_hidden),
-                nn.Linear(opt.n_hidden, opt.n_hidden),
-                nn.ReLU(),
-                nn.BatchNorm1d(opt.n_hidden),
-                nn.Linear(opt.n_hidden, opt.n_hidden),
-                nn.ReLU(),
-                nn.BatchNorm1d(opt.n_hidden),
-                nn.Linear(opt.n_hidden, self.n_outputs)
-            )
-        else:
-            self.fc = nn.Sequential(
+        self.fc = nn.Sequential(
                 nn.Linear(opt.n_hidden, opt.n_hidden),
                 nn.ReLU(),
                 nn.Linear(opt.n_hidden, opt.n_hidden),
