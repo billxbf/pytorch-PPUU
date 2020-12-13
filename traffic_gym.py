@@ -711,11 +711,11 @@ class Car:
             img = np.array(self._stop_image)
             detect_region = img[img.shape[0] // 2 - 1:img.shape[0] // 2 + 2,
                             img.shape[1] // 2 - 1:img.shape[1] // 2 + 1, :]
-            if np.any(detect_region[:, :, 1] >= 128) and self.valid_symbol != True:
+            if np.any(detect_region[:, :, 1] >= 128):
                 self.valid_symbol = True
                 self.start = True
                 # plt.imsave('stop_img.png', img)
-            if np.any(detect_region[:, :, 0] >= 128) and self.valid_symbol != False:
+            if np.any(detect_region[:, :, 0] >= 128):
                 self.valid_symbol = False
                 # plt.imsave('stop_img.png', img)
 
@@ -724,7 +724,7 @@ class Car:
             img = np.array(self._stop_image)
             detect_region = img[img.shape[0] // 2 - 1:img.shape[0] // 2 + 2,
                             img.shape[1] // 2 - 1:img.shape[1] // 2 + 1, :]
-            if np.mean(detect_region[:, :, 2])>=128:
+            if np.mean(detect_region[:, :, 2]) >= 128:
                 self.arrived_to_dst = False
                 self.off_screen = True
             elif self.start == True and self.valid == False:
