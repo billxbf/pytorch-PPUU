@@ -577,8 +577,9 @@ class Car:
             self._offroads_image.append(self._get_observation_image(*object_))
         elif object_name == 'stop_image':
             #double check
-            if self._get_observation_image(*object_)[0] is not None:
-                self._stop_image = self._get_observation_image(*object_)[0]
+            objects = self._get_observation_image(*object_)
+            if objects is not None:
+                self._stop_image = objects[0]
 
     def get_last(self, n, done, norm_state=False, return_reward=False, gamma=0.99, colored_lane=None, offroad_map=None,
                  stop_region=None):
