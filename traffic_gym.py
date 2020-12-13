@@ -465,8 +465,8 @@ class Car:
         try:
             sub_surface = screen_surface.subsurface((*(centre + m - x_y / 2), *x_y))
         except ValueError as ex:  # if the agent fucks up
+            print(f'{self} cannot show')  # notify about the event
             return None
-            # print(f'{self} fucked up')  # notify about the event
             # self.off_screen = True  # we're off_screen
             # return self._states_image[-1]  # return last state
         theta = np.arctan2(*d[::-1]) * 180 / np.pi  # in degrees
@@ -713,7 +713,8 @@ class Car:
                             img.shape[1] // 2 - 1:img.shape[1] // 2 + 1, :]
             if np.any(detect_region[:, :, 1] >= 128):
                 self.valid_symbol = True
-                self.start = True
+                if self.start is not True:
+                    self.start = True
                 # plt.imsave('stop_img.png', img)
             if np.any(detect_region[:, :, 0] >= 128):
                 self.valid_symbol = False
