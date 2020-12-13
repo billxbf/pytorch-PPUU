@@ -656,7 +656,7 @@ class Car:
     def dump_state_image(self, save_dir='scratch/', mode='img', colored_lane=None, offroad_map=None, stop_region=None):
         os.system('mkdir -p ' + save_dir)
         transpose = list(zip(*self._states_image))
-        if stop_region is not None and self.start == False:
+        if stop_region is not None and self.start is not True:
             print(f"car{self.id} does not start correctly.")
             return
         if colored_lane is not None:
